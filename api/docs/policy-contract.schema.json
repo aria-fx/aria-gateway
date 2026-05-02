@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aria-fx.github.io/aria-gateway/policy-contract/1.0.0/schema.json",
+  "title": "ARIA Gateway Policy Contract",
+  "description": "Versioned policy contract for identity input, effective access, and governance decisions. Version 1.0.0.",
+  "$defs": {
+    "PolicyContractVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Contract schema version. Must equal '1.0.0' for this schema."
+    },
+    "IdentityProvider": {
+      "type": "string",
+      "description": "Identity provider slug. Well-known values are listed as examples; any string is valid for custom IDPs.",
+      "examples": ["entra", "okta", "github", "cognito", "google"]
+    },
+    "SensitivityTier": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "highly_confidential"],
+      "description": "Ordered sensitivity classification tier. public < internal < confidential < highly_confidential."
+    },
+    "NormalizedIdentity": {
+      "type": "object",
+      "title": "NormalizedIdentity",
+      "description": "Authenticated principal as resolved from an upstream identity provider, normalised to IDP-agnostic fields.",
+      "required": ["contract_version", "provider", "principal_id", "groups", "roles"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "$ref": "#/$defs/PolicyContractVersion"
+        },
+        "provider": {
+          "$ref": "#/$defs/IdentityProvider"
+        },
+        "principal_id": {
+          "type": "string",
+          "description": "Immutable principal identifier. Maps to the OIDC 'sub' claim or the provider's object/user ID.",
+          "minLength": 1
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable display name ('name' claim). Optional."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address ('email' claim). Optional."
+        },
+        "groups": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Group memberships expressed as stable identifiers (AAD group IDs, GitHub team slugs, etc.).",
+          "default": []
+        },
+        "roles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Application roles and/or OAuth scopes granted to this principal (union of 'roles' and 'scp' claims).",
+          "default": []
+        },
+        "tenant": {
+          "type": "string",
+          "description": "Tenant or organization identifier (AAD tenant ID, GitHub org slug, etc.). Optional for single-tenant deployments."
+        },
+        "extensions": {
+          "type": "object",
+          "description": "Arbitrary IDP-specific claims with no canonical mapping. Keys should be namespaced (e.g. 'entra:employee_id').",
+          "additionalProperties": true
+        }
+      }
+    },
+    "EffectiveAccessContext": {
+      "type": "object",
+      "title": "EffectiveAccessContext",
+      "description": "Effective access context derived from an authenticated identity and the gateway's policy engine.",
+      "required": ["contract_version", "consumer_id", "sensitivity_ceiling", "purview_roles"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "$ref": "#/$defs/PolicyContractVersion"
+        },
+        "consumer_id": {
+          "type": "string",
+          "description": "Consumer team / application identifier. Matches 'allowed_consumers' in OASF governance overlays.",
+          "minLength": 1
+        },
+        "sensitivity_ceiling": {
+          "$ref": "#/$defs/SensitivityTier",
+          "description": "Maximum sensitivity tier this consumer is cleared to access."
+        },
+        "purview_roles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fine-grained purview roles controlling cross-cutting governance decisions. An empty array means no elevated purview.",
+          "default": [],
+          "examples": [
+            ["purview:export-approver"],
+            ["purview:audit-reader", "purview:compliance-officer"]
+          ]
+        },
+        "identity": {
+          "$ref": "#/$defs/NormalizedIdentity",
+          "description": "Originating normalized identity (if available). Absent for header-only or anonymous requests."
+        }
+      }
+    },
+    "PolicyDecision": {
+      "type": "object",
+      "title": "PolicyDecision",
+      "description": "Result of a governance policy evaluation for a single asset and consumer pair.",
+      "required": ["contract_version", "allowed"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "$ref": "#/$defs/PolicyContractVersion"
+        },
+        "allowed": {
+          "type": "boolean",
+          "description": "true if the consumer is permitted to access the asset."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable explanation of why access was denied. Always set when 'allowed' is false."
+        },
+        "approval_chain": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered list of approver identifiers that must grant access before the consumer can proceed."
+        },
+        "action_url": {
+          "type": "string",
+          "format": "uri-reference",
+          "description": "URL the consumer can visit to submit an access request."
+        }
+      },
+      "if": { "properties": { "allowed": { "const": false } } },
+      "then": { "required": ["reason"] }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/NormalizedIdentity" },
+    { "$ref": "#/$defs/EffectiveAccessContext" },
+    { "$ref": "#/$defs/PolicyDecision" }
+  ]
+}
