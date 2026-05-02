@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v1.2.0)"
+        required: true
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: api/package-lock.json
+
+      - name: Build API
+        working-directory: api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          cat <<EOF > RELEASE_NOTES.md
+          ## ARIA Distribution Gateway $VERSION
+
+          ### What's included
+          - **Catalog API** — Browse and search governed AI skills and agents
+          - **MCP Server** — Claude Desktop integration via Model Context Protocol
+          - **ChatGPT Plugin** — \`/.well-known/ai-plugin.json\` + OpenAPI spec
+          - **Web Catalog UI** — Non-technical browser for the skills catalog
+          - **Docker images** — \`ghcr.io/${{ github.repository_owner }}/aria-gateway-api:$VERSION\`
+            and \`ghcr.io/${{ github.repository_owner }}/aria-gateway-ui:$VERSION\`
+
+          ### Quick start
+
+          \`\`\`bash
+          docker compose pull
+          docker compose up -d
+          # Open http://localhost:8080
+          \`\`\`
+
+          ### Claude Desktop integration
+
+          Add to \`claude_desktop_config.json\`:
+          \`\`\`json
+          {
+            "mcpServers": {
+              "aria-gateway": {
+                "url": "http://your-gateway-host/mcp"
+              }
+            }
+          }
+          \`\`\`
+
+          ### ChatGPT integration
+
+          Point your GPT Action to: \`http://your-gateway-host/.well-known/ai-plugin.json\`
+          EOF
+          echo "notes_file=RELEASE_NOTES.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "ARIA Gateway ${{ steps.version.outputs.tag }}"
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
