@@ -159,6 +159,8 @@ The gateway reads governance context from HTTP headers:
 
 When not provided, the gateway defaults to `all-employees` / `internal` access.
 
+> **Policy Contract:** The identity, access, and decision types used internally are defined in the versioned Auth-Core Policy Contract (`v1.0.0`).  See [`api/docs/policy-contract.md`](api/docs/policy-contract.md) for the full contract specification, versioning strategy, and IDP extension points.
+
 ### Endpoints
 
 | Method | Path | Description |
@@ -201,10 +203,15 @@ If blocked, the API returns `403` with a plain-language reason and an `action_ur
 aria-gateway/
 ├── api/                    # Catalog API (Express + TypeScript)
 │   ├── src/
-│   │   ├── models/         # OASF type definitions
+│   │   ├── models/         # OASF type definitions + policy contract types
+│   │   │   ├── oasf.ts     # OASF record, governance, asset types
+│   │   │   └── policy-contract.ts  # Auth-core policy contract v1.0.0
 │   │   ├── data/           # Sample asset catalog
 │   │   ├── services/       # Catalog, governance, .mcpb services
 │   │   └── routes/         # catalog, plugins (ChatGPT), mcp (Claude)
+│   ├── docs/               # Contract documentation and JSON Schema
+│   │   ├── policy-contract.md          # Contract spec, versioning, IDP guide
+│   │   └── policy-contract.schema.json # JSON Schema for contract objects
 │   ├── tests/              # Vitest + Supertest API tests
 │   └── Dockerfile
 ├── ui/                     # Web Catalog UI (React + TypeScript + Tailwind)
@@ -217,6 +224,7 @@ aria-gateway/
 ├── nginx/
 │   └── nginx.conf          # URL rewrite rules + reverse proxy
 ├── docker-compose.yml
+├── CHANGELOG.md
 └── .github/workflows/
     ├── ci.yml              # Lint + build + test on every PR
     ├── docker-publish.yml  # Build and push Docker images on merge

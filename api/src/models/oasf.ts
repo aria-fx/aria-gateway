@@ -1,6 +1,17 @@
 // OASF (Open Agentic Schema Framework) type definitions
 // Based on: https://github.com/aria-fx/aria
 
+// Policy contract types are defined in ./policy-contract.ts and re-exported
+// here for convenience.  New code should import directly from policy-contract.
+export type {
+  IdentityProvider,
+  NormalizedIdentity,
+  EffectiveAccessContext,
+  PolicyDecision,
+  PolicyContractVersion,
+} from "./policy-contract.js";
+export { POLICY_CONTRACT_VERSION, withContractVersion } from "./policy-contract.js";
+
 export interface OasfSkill {
   id: number;
   name: string; // e.g., "nlp/nlu/intent_classification"
@@ -107,6 +118,10 @@ export interface AccessRequestResult {
   message: string;
 }
 
+/**
+ * @deprecated Use {@link PolicyDecision} from `./policy-contract.js` instead.
+ * Retained for backward compatibility; will be removed in contract v2.
+ */
 export interface GovernanceCheckResult {
   allowed: boolean;
   reason?: string;

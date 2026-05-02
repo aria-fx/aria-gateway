@@ -1,8 +1,6 @@
-import type {
-  CatalogAsset,
-  GovernanceCheckResult,
-  SensitivityTier,
-} from "../models/oasf.js";
+import type { CatalogAsset, SensitivityTier } from "../models/oasf.js";
+import type { EffectiveAccessContext, PolicyDecision } from "../models/policy-contract.js";
+import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 import { sampleAssets } from "../data/sample-assets.js";
 
 const TIER_ORDER: Record<SensitivityTier, number> = {
@@ -16,15 +14,17 @@ function tierLevel(tier: SensitivityTier): number {
   return TIER_ORDER[tier] ?? 0;
 }
 
-export interface ConsumerContext {
-  consumer_id: string;
-  sensitivity_ceiling: SensitivityTier;
-}
+/**
+ * Consumer context passed to governance checks.
+ * Re-exported as an alias of {@link EffectiveAccessContext} from the
+ * policy contract so that all service code uses the versioned type.
+ */
+export type ConsumerContext = EffectiveAccessContext;
 
 export function checkGovernance(
   asset: CatalogAsset,
   consumer: ConsumerContext
-): GovernanceCheckResult {
+): PolicyDecision {
   const governance = asset.governance;
   const name = asset.record.name;
   const version = asset.record.version;
@@ -32,6 +32,7 @@ export function checkGovernance(
   // 1. Sensitivity ceiling check
   if (tierLevel(governance.sensitivity_tier) > tierLevel(consumer.sensitivity_ceiling)) {
     return {
+      contract_version: POLICY_CONTRACT_VERSION,
       allowed: false,
       reason: `This asset is classified as "${governance.sensitivity_tier}" but your access level only permits "${consumer.sensitivity_ceiling}" assets.`,
       approval_chain: governance.approval_chain,
@@ -47,6 +48,7 @@ export function checkGovernance(
     !governance.allowed_consumers.includes("all-employees")
   ) {
     return {
+      contract_version: POLICY_CONTRACT_VERSION,
       allowed: false,
       reason: `Your team (${consumer.consumer_id}) does not have access to this asset. Access is restricted to: ${governance.allowed_consumers.join(", ")}.`,
       approval_chain: governance.approval_chain,
@@ -63,6 +65,7 @@ export function checkGovernance(
         tierLevel(governance.dependency_sensitivity_ceiling)
       ) {
         return {
+          contract_version: POLICY_CONTRACT_VERSION,
           allowed: false,
           reason: `A dependency (${dep.record.name}) exceeds the allowed sensitivity ceiling of ${governance.dependency_sensitivity_ceiling}.`,
           approval_chain: governance.approval_chain,
@@ -72,7 +75,7 @@ export function checkGovernance(
     }
   }
 
-  return { allowed: true };
+  return { contract_version: POLICY_CONTRACT_VERSION, allowed: true };
 }
 
 function resolveDependencies(asset: CatalogAsset): CatalogAsset[] {
@@ -90,8 +93,10 @@ function resolveDependencies(asset: CatalogAsset): CatalogAsset[] {
 // Default consumer context when no auth is provided (public/anonymous)
 export function getAnonymousConsumer(): ConsumerContext {
   return {
+    contract_version: POLICY_CONTRACT_VERSION,
     consumer_id: "anonymous",
     sensitivity_ceiling: "public",
+    purview_roles: [],
   };
 }
 
@@ -101,10 +106,12 @@ export function parseConsumerContext(headers: Record<string, string | string[] |
   const ceiling = headers["x-sensitivity-ceiling"];
 
   return {
+    contract_version: POLICY_CONTRACT_VERSION,
     consumer_id: typeof consumerId === "string" ? consumerId : "all-employees",
     sensitivity_ceiling:
       typeof ceiling === "string" && ceiling in TIER_ORDER
         ? (ceiling as SensitivityTier)
         : "internal",
+    purview_roles: [],
   };
 }
