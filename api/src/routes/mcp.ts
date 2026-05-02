@@ -61,7 +61,7 @@ router.post("/", (req: Request, res: Response) => {
     return;
   }
 
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>);
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
 
   switch (body.method) {
     case "initialize":

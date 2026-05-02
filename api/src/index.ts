@@ -6,6 +6,7 @@ import morgan from "morgan";
 import catalogRouter from "./routes/catalog.js";
 import pluginsRouter from "./routes/plugins.js";
 import mcpRouter from "./routes/mcp.js";
+import { createAuthMiddleware } from "./middleware/auth.middleware.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -47,6 +48,10 @@ app.use(
 
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json());
+
+// JWT auth middleware — validates bearer tokens and populates req.identity.
+// Set AUTH_ENFORCE=true to reject requests with missing/invalid tokens.
+app.use(createAuthMiddleware());
 
 // Health check
 app.get("/health", (_req, res) => {
