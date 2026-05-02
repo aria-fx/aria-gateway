@@ -1,7 +1,8 @@
 import type { CatalogAsset, SensitivityTier } from "../models/oasf.js";
-import type { EffectiveAccessContext, PolicyDecision } from "../models/policy-contract.js";
+import type { EffectiveAccessContext, NormalizedIdentity, PolicyDecision } from "../models/policy-contract.js";
 import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 import { sampleAssets } from "../data/sample-assets.js";
+import { sensitivityCeilingFromIdentity } from "../middleware/auth.middleware.js";
 
 const TIER_ORDER: Record<SensitivityTier, number> = {
   public: 0,
@@ -100,18 +101,32 @@ export function getAnonymousConsumer(): ConsumerContext {
   };
 }
 
-// Parse consumer context from request headers (simplified – no real Entra ID in demo)
-export function parseConsumerContext(headers: Record<string, string | string[] | undefined>): ConsumerContext {
+// Parse consumer context from request headers, optionally enriched by a
+// validated JWT identity (produced by the auth middleware).
+export function parseConsumerContext(
+  headers: Record<string, string | string[] | undefined>,
+  identity?: NormalizedIdentity
+): ConsumerContext {
   const consumerId = headers["x-consumer-id"];
   const ceiling = headers["x-sensitivity-ceiling"];
 
+  // When a validated identity is available, derive the consumer_id and
+  // sensitivity_ceiling from the token claims, falling back to headers.
+  const resolvedConsumerId = identity?.principal_id ??
+    (typeof consumerId === "string" ? consumerId : "all-employees");
+
+  const resolvedCeiling: SensitivityTier =
+    identity
+      ? sensitivityCeilingFromIdentity(identity)
+      : (typeof ceiling === "string" && ceiling in TIER_ORDER
+          ? (ceiling as SensitivityTier)
+          : "internal");
+
   return {
     contract_version: POLICY_CONTRACT_VERSION,
-    consumer_id: typeof consumerId === "string" ? consumerId : "all-employees",
-    sensitivity_ceiling:
-      typeof ceiling === "string" && ceiling in TIER_ORDER
-        ? (ceiling as SensitivityTier)
-        : "internal",
+    consumer_id: resolvedConsumerId,
+    sensitivity_ceiling: resolvedCeiling,
     purview_roles: [],
+    identity,
   };
 }

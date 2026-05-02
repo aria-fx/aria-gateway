@@ -34,7 +34,7 @@ router.get("/assets", (req, res) => {
     return;
   }
 
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>);
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
   const all = listAssets(parsed.data);
 
   // Filter by governance – only show assets the consumer is authorized to see
@@ -75,7 +75,7 @@ router.get("/assets/:name/:version/manifest", (req, res) => {
     return;
   }
 
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>);
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
   const full = sampleAssets.find(
     (a) => a.record.name === name && a.record.version === version
   );
@@ -108,7 +108,7 @@ router.get("/assets/:name/:version/mcpb", (req, res) => {
     return;
   }
 
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>);
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
   const check = checkGovernance(asset, consumer);
   if (!check.allowed) {
     res.status(403).json({
@@ -147,7 +147,7 @@ router.post("/assets/:name/:version/install", (req, res) => {
     return;
   }
 
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>);
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
   const check = checkGovernance(asset, consumer);
   if (!check.allowed) {
     res.status(403).json({
