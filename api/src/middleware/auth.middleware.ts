@@ -24,6 +24,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import type { NormalizedIdentity } from "../models/policy-contract.js";
 import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 import type { SensitivityTier } from "../models/oasf.js";
+import { emitAuthFailure } from "../services/observability.service.js";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -210,12 +211,14 @@ export function createAuthMiddleware(opts: AuthMiddlewareOptions = {}) {
     // No token present
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       if (enforce) {
+        emitAuthFailure({ mode: "enforce", reason: "token_missing" });
         res.status(401).json({
           error: "Unauthorized",
           message: "Missing or malformed Authorization header.",
         });
         return;
       }
+      emitAuthFailure({ mode: "observe", reason: "token_missing" });
       return next();
     }
 
@@ -224,12 +227,14 @@ export function createAuthMiddleware(opts: AuthMiddlewareOptions = {}) {
     // If no JWKS URI is configured we cannot validate the token.
     if (!jwksUri) {
       if (enforce) {
+        emitAuthFailure({ mode: "enforce", reason: "jwks_unconfigured" });
         res.status(401).json({
           error: "Unauthorized",
           message: "Auth enforcement is enabled but no JWKS URI is configured.",
         });
         return;
       }
+      emitAuthFailure({ mode: "observe", reason: "jwks_unconfigured" });
       return next();
     }
 
@@ -244,19 +249,14 @@ export function createAuthMiddleware(opts: AuthMiddlewareOptions = {}) {
       req.identity = normalizeEntraClaims(payload as EntraClaims);
       return next();
     } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Token validation failed.";
       if (enforce) {
-        const message =
-          err instanceof Error ? err.message : "Token validation failed.";
-        res.status(401).json({ error: "Unauthorized", message });
+        emitAuthFailure({ mode: "enforce", reason: "token_invalid", error_message: errorMessage });
+        res.status(401).json({ error: "Unauthorized", message: errorMessage });
         return;
       }
-      // Non-enforcing: log and continue — let downstream decide
-      if (process.env.NODE_ENV !== "test") {
-        console.warn(
-          "[auth] Token validation failed (non-enforcing):",
-          err instanceof Error ? err.message : err
-        );
-      }
+      // Non-enforcing (observe) mode: log and continue — let downstream decide
+      emitAuthFailure({ mode: "observe", reason: "token_invalid", error_message: errorMessage });
       return next();
     }
   };

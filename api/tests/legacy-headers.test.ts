@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { parseConsumerContext, isLegacyHeadersMode } from "../src/services/governance.service.js";
+import { resetCounters, getCounters } from "../src/services/observability.service.js";
 import type { NormalizedIdentity } from "../src/models/policy-contract.js";
 
 // ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ describe("parseConsumerContext — Rule 3: legacy mode disabled", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Warning log emission
+// Warning log emission (structured JSON via observability service)
 // ---------------------------------------------------------------------------
 
 describe("parseConsumerContext — warning log in non-dev environments", () => {
@@ -197,6 +198,7 @@ describe("parseConsumerContext — warning log in non-dev environments", () => {
 
   beforeEach(() => {
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resetCounters();
     delete process.env.LEGACY_HEADERS_MODE; // ensure default (enabled)
   });
 
@@ -205,15 +207,28 @@ describe("parseConsumerContext — warning log in non-dev environments", () => {
     delete process.env.LEGACY_HEADERS_MODE;
   });
 
-  it("emits a warning when legacy headers are used in production", () => {
+  it("emits a structured JSON warning when legacy headers are used in production", () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
       parseConsumerContext({ "x-consumer-id": "hr-team" });
       expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0][0]).toContain("[auth]");
-      expect(warnSpy.mock.calls[0][0]).toContain("Legacy header-based consumer context");
-      expect(warnSpy.mock.calls[0][0]).toContain("2027-01-01");
+      const emitted = JSON.parse(warnSpy.mock.calls[0][0] as string);
+      expect(emitted.event).toBe("auth.legacy_header_used");
+      expect(emitted.consumer_id).toBe("hr-team");
+      expect(emitted.sensitivity_ceiling).toBe("(absent)");
+      expect(typeof emitted.timestamp).toBe("string");
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  it("increments the auth.legacy_header_used counter in production", () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      parseConsumerContext({ "x-consumer-id": "hr-team" });
+      expect(getCounters()["auth.legacy_header_used"]).toBe(1);
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
@@ -223,6 +238,12 @@ describe("parseConsumerContext — warning log in non-dev environments", () => {
     // NODE_ENV is already "test" in vitest
     parseConsumerContext({ "x-consumer-id": "hr-team" });
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("still increments the counter even in test environment", () => {
+    parseConsumerContext({ "x-consumer-id": "hr-team" });
+    // Counter increments regardless of NODE_ENV (unlike the log)
+    expect(getCounters()["auth.legacy_header_used"]).toBe(1);
   });
 
   it("does not emit a warning in development environment", () => {
@@ -261,7 +282,7 @@ describe("parseConsumerContext — warning log in non-dev environments", () => {
     }
   });
 
-  it("includes the header values in the warning message", () => {
+  it("includes the header values in the structured warning", () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
@@ -269,9 +290,9 @@ describe("parseConsumerContext — warning log in non-dev environments", () => {
         "x-consumer-id": "sales-team",
         "x-sensitivity-ceiling": "confidential",
       });
-      const msg = warnSpy.mock.calls[0][0] as string;
-      expect(msg).toContain("sales-team");
-      expect(msg).toContain("confidential");
+      const emitted = JSON.parse(warnSpy.mock.calls[0][0] as string);
+      expect(emitted.consumer_id).toBe("sales-team");
+      expect(emitted.sensitivity_ceiling).toBe("confidential");
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
