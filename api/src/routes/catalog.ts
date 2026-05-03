@@ -84,9 +84,7 @@ router.get("/assets/:name/:version/manifest", (req, res) => {
     if (!check.allowed) {
       res.status(403).json({
         error: "Access denied by governance policy",
-        reason: check.reason,
-        approval_chain: check.approval_chain,
-        action_url: check.action_url,
+        ...check,
       });
       return;
     }
@@ -113,8 +111,7 @@ router.get("/assets/:name/:version/mcpb", (req, res) => {
   if (!check.allowed) {
     res.status(403).json({
       error: "Access denied by governance policy",
-      reason: check.reason,
-      action_url: check.action_url,
+      ...check,
     });
     return;
   }
@@ -152,9 +149,7 @@ router.post("/assets/:name/:version/install", (req, res) => {
   if (!check.allowed) {
     res.status(403).json({
       error: "Install blocked by governance policy",
-      reason: check.reason,
-      approval_chain: check.approval_chain,
-      action_url: check.action_url,
+      ...check,
     });
     return;
   }

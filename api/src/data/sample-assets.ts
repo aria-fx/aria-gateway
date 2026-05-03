@@ -258,6 +258,7 @@ export const sampleAssets: CatalogAsset[] = [
       compliance_frameworks: ["SOX", "PCI-DSS"],
       allowed_entra_groups: ["fin-analysts-sg", "fin-leads-sg"],
       allowed_entra_roles: ["FinancialDataReader", "FinancialDataWriter"],
+      required_purview_roles: ["purview:compliance-officer", "purview:export-approver"],
     },
   },
   {
@@ -304,6 +305,7 @@ export const sampleAssets: CatalogAsset[] = [
       compliance_frameworks: ["GDPR", "SOC2"],
       allowed_entra_groups: ["sales-team-sg", "customer-success-sg"],
       allowed_entra_roles: ["CRMDataReader"],
+      required_purview_roles: ["purview:export-approver"],
     },
   },
 ];

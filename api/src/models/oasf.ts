@@ -78,6 +78,16 @@ export interface OasfGovernance {
    * Omit (or leave empty) to impose no role-level constraint.
    */
   allowed_entra_roles?: string[];
+  /**
+   * Purview roles (from `EffectiveAccessContext.purview_roles`) that are
+   * required to access this asset.  When set, the consumer must hold at
+   * least one of the listed purview roles.
+   *
+   * Well-known values: "purview:compliance-officer", "purview:export-approver",
+   * "purview:audit-reader".  Custom purview roles are allowed.
+   * Omit (or leave empty) to impose no purview-role constraint.
+   */
+  required_purview_roles?: string[];
 }
 
 export interface CatalogAsset {
