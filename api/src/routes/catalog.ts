@@ -69,27 +69,25 @@ router.get("/assets/:name/:version/manifest", (req, res) => {
   const { version } = req.params;
   const name = decodeURIComponent(req.params.name);
 
-  const manifest = getAssetManifest(name, version);
-  if (!manifest) {
+  const full = sampleAssets.find(
+    (a) => a.record.name === name && a.record.version === version
+  );
+  if (!full) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
     return;
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const full = sampleAssets.find(
-    (a) => a.record.name === name && a.record.version === version
-  );
-  if (full) {
-    const check = checkGovernance(full, consumer);
-    if (!check.allowed) {
-      res.status(403).json({
-        error: "Access denied by governance policy",
-        ...check,
-      });
-      return;
-    }
+  const check = checkGovernance(full, consumer);
+  if (!check.allowed) {
+    res.status(403).json({
+      error: "Access denied by governance policy",
+      ...check,
+    });
+    return;
   }
 
+  const manifest = getAssetManifest(name, version)!;
   res.json(manifest);
 });
 
