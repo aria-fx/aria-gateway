@@ -1,0 +1,543 @@
+{
+  "fixture_version": "1.0.0",
+  "policy_contract_version": "1.0.0",
+  "description": "Cross-language policy conformance fixtures. Each case defines an asset governance configuration, a consumer context, and the expected PolicyDecision outcome. Run by the gateway conformance test suite and can be replayed by any auth-core implementation to verify policy parity.",
+  "cases": [
+    {
+      "id": "CF-001",
+      "description": "Public asset with no constraints is accessible by an anonymous consumer",
+      "tags": ["sensitivity"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-001-public-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "A public asset with no governance constraints",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "public"
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "anonymous",
+        "sensitivity_ceiling": "public",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-002",
+      "description": "Highly confidential asset is denied to a consumer with only internal ceiling",
+      "tags": ["sensitivity"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-002-hc-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "A highly confidential asset",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "highly_confidential",
+          "approval_chain": ["security-lead"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "all-employees",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "highly_confidential"
+      }
+    },
+    {
+      "id": "CF-003",
+      "description": "Confidential asset is accessible when consumer ceiling exactly matches",
+      "tags": ["sensitivity"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-003-confidential-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "A confidential asset",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "confidential"
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "approved-team",
+        "sensitivity_ceiling": "confidential",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-004",
+      "description": "Internal asset is accessible when consumer ceiling is above the required tier",
+      "tags": ["sensitivity"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-004-internal-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An internal asset",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal"
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "power-user-team",
+        "sensitivity_ceiling": "highly_confidential",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-005",
+      "description": "Consumer not in the asset allow-list is denied access",
+      "tags": ["allow-list"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-005-allow-list-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to specific consumer teams",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_consumers": ["finance-team"],
+          "approval_chain": ["finance-director"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "marketing-team",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "marketing-team"
+      }
+    },
+    {
+      "id": "CF-006",
+      "description": "Consumer explicitly included in the asset allow-list is granted access",
+      "tags": ["allow-list"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-006-allow-list-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to finance and sales teams",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_consumers": ["finance-team", "sales-team"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "finance-team",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-007",
+      "description": "Any authenticated consumer is allowed when the allow-list contains 'all-employees'",
+      "tags": ["allow-list"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-007-all-employees-asset",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset open to all employees",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_consumers": ["all-employees"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "any-random-team",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-008",
+      "description": "Consumer without a required Entra group membership is denied access",
+      "tags": ["groups"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-008-group-restricted",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to a specific Entra group",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_entra_groups": ["fin-analysts-sg"],
+          "approval_chain": ["finance-director"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": [],
+        "identity": {
+          "contract_version": "1.0.0",
+          "provider": "entra",
+          "principal_id": "00000000-0000-0000-0000-000000000008",
+          "groups": ["other-group"],
+          "roles": []
+        }
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "Entra groups"
+      }
+    },
+    {
+      "id": "CF-009",
+      "description": "Consumer holding a required Entra group membership is granted access",
+      "tags": ["groups"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-009-group-allowed",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to a specific Entra group (consumer has it)",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_entra_groups": ["fin-analysts-sg", "fin-leads-sg"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": [],
+        "identity": {
+          "contract_version": "1.0.0",
+          "provider": "entra",
+          "principal_id": "00000000-0000-0000-0000-000000000009",
+          "groups": ["fin-analysts-sg"],
+          "roles": []
+        }
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-010",
+      "description": "Consumer without a required Entra role is denied access",
+      "tags": ["roles"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-010-role-restricted",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to a specific Entra role",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_entra_roles": ["FinancialDataReader"],
+          "approval_chain": ["finance-director"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": [],
+        "identity": {
+          "contract_version": "1.0.0",
+          "provider": "entra",
+          "principal_id": "00000000-0000-0000-0000-000000000010",
+          "groups": [],
+          "roles": ["catalog.read"]
+        }
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "Entra roles"
+      }
+    },
+    {
+      "id": "CF-011",
+      "description": "Consumer holding a required Entra role is granted access",
+      "tags": ["roles"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-011-role-allowed",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset restricted to a specific Entra role (consumer has it)",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_entra_roles": ["FinancialDataReader", "FinancialDataWriter"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": [],
+        "identity": {
+          "contract_version": "1.0.0",
+          "provider": "entra",
+          "principal_id": "00000000-0000-0000-0000-000000000011",
+          "groups": [],
+          "roles": ["FinancialDataReader"]
+        }
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-012",
+      "description": "Consumer without a required purview role is denied access",
+      "tags": ["purview"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-012-purview-restricted",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset requiring a purview compliance role",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "confidential",
+          "required_purview_roles": ["purview:compliance-officer"],
+          "approval_chain": ["compliance-team"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "highly_confidential",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "purview roles"
+      }
+    },
+    {
+      "id": "CF-013",
+      "description": "Consumer holding a required purview role is granted access",
+      "tags": ["purview"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-013-purview-allowed",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset requiring a purview compliance role (consumer has it)",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "confidential",
+          "required_purview_roles": ["purview:compliance-officer", "purview:export-approver"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "test-consumer",
+        "sensitivity_ceiling": "highly_confidential",
+        "purview_roles": ["purview:export-approver"]
+      },
+      "expected": {
+        "allowed": true
+      }
+    },
+    {
+      "id": "CF-014",
+      "description": "Consumer with no identity is denied when the asset requires Entra group membership",
+      "tags": ["groups", "identity"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-014-group-no-identity",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset requiring an Entra group; consumer has no identity token",
+          "skills": [],
+          "domains": [],
+          "modules": [],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "allowed_entra_groups": ["secure-team-sg"]
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "anonymous-consumer",
+        "sensitivity_ceiling": "internal",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "Entra groups"
+      }
+    },
+    {
+      "id": "CF-015",
+      "description": "Asset is denied when a dependency's sensitivity tier exceeds the declared ceiling",
+      "tags": ["dependencies"],
+      "asset": {
+        "record": {
+          "name": "aria.dev/test/cf-015-dep-ceiling",
+          "version": "1.0.0",
+          "schema_version": "1.0.0",
+          "description": "An asset with a dependency on financial-analyzer (highly_confidential) while ceiling is internal",
+          "skills": [],
+          "domains": [],
+          "modules": [
+            {
+              "type": "knowledge_base",
+              "ref": "aria.dev/skills/financial-analyzer:1.0.0"
+            }
+          ],
+          "authors": ["test-author"],
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "lifecycle_state": "published"
+        },
+        "governance": {
+          "sensitivity_tier": "internal",
+          "dependency_sensitivity_ceiling": "internal"
+        }
+      },
+      "consumer": {
+        "contract_version": "1.0.0",
+        "consumer_id": "all-employees",
+        "sensitivity_ceiling": "highly_confidential",
+        "purview_roles": []
+      },
+      "expected": {
+        "allowed": false,
+        "reason_contains": "financial-analyzer"
+      }
+    }
+  ]
+}
