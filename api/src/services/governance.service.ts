@@ -111,7 +111,24 @@ export function checkGovernance(
     }
   }
 
-  // 5. Dependency sensitivity ceiling check
+  // 5. Purview role requirements check
+  if (governance.required_purview_roles && governance.required_purview_roles.length > 0) {
+    const consumerPurview = consumer.purview_roles ?? [];
+    const hasPurview = consumerPurview.some((r) =>
+      governance.required_purview_roles!.includes(r)
+    );
+    if (!hasPurview) {
+      return {
+        contract_version: POLICY_CONTRACT_VERSION,
+        allowed: false,
+        reason: `Access to this asset requires one of the following purview roles: ${governance.required_purview_roles.join(", ")}.`,
+        approval_chain: governance.approval_chain,
+        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
+      };
+    }
+  }
+
+  // 6. Dependency sensitivity ceiling check
   if (governance.dependency_sensitivity_ceiling) {
     const deps = resolveDependencies(asset);
     for (const dep of deps) {

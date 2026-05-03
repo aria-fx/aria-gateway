@@ -353,3 +353,137 @@ describe("Governance service – Entra group/role constraints", () => {
     expect(asset!.governance.allowed_entra_roles!.length).toBeGreaterThan(0);
   });
 });
+
+describe("Governance service – purview role requirements", () => {
+  function makeAssetWithPurviewRoles(requiredRoles: string[]): CatalogAsset {
+    return {
+      record: {
+        name: "aria.dev/test/purview-restricted",
+        version: "1.0.0",
+        schema_version: "1.0.0",
+        description: "Test asset with purview role requirement",
+        skills: [],
+        domains: [],
+        modules: [],
+        authors: [],
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        lifecycle_state: "published",
+      },
+      governance: {
+        sensitivity_tier: "confidential",
+        required_purview_roles: requiredRoles,
+      },
+    };
+  }
+
+  function makeConsumerWithPurviewRoles(purviewRoles: string[]): ConsumerContext {
+    return {
+      contract_version: "1.0.0",
+      consumer_id: "test-consumer",
+      sensitivity_ceiling: "highly_confidential",
+      purview_roles: purviewRoles,
+    };
+  }
+
+  it("allows access when consumer holds a required purview role", () => {
+    const asset = makeAssetWithPurviewRoles(["purview:compliance-officer", "purview:export-approver"]);
+    const consumer = makeConsumerWithPurviewRoles(["purview:export-approver"]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("denies access when consumer holds no required purview roles", () => {
+    const asset = makeAssetWithPurviewRoles(["purview:compliance-officer"]);
+    const consumer = makeConsumerWithPurviewRoles([]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("purview roles");
+    expect(decision.action_url).toContain("/request-access");
+  });
+
+  it("denies access when consumer has purview roles but none match", () => {
+    const asset = makeAssetWithPurviewRoles(["purview:compliance-officer"]);
+    const consumer = makeConsumerWithPurviewRoles(["purview:audit-reader"]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("purview roles");
+  });
+
+  it("skips purview check when required_purview_roles is empty", () => {
+    const asset = makeAssetWithPurviewRoles([]);
+    const consumer = makeConsumerWithPurviewRoles([]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("skips purview check when required_purview_roles is absent", () => {
+    const asset: CatalogAsset = {
+      record: {
+        name: "aria.dev/test/no-purview",
+        version: "1.0.0",
+        schema_version: "1.0.0",
+        description: "Test asset without purview constraint",
+        skills: [],
+        domains: [],
+        modules: [],
+        authors: [],
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        lifecycle_state: "published",
+      },
+      governance: { sensitivity_tier: "internal" },
+    };
+    const consumer = makeConsumerWithPurviewRoles([]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("denied decision includes contract_version and approval_chain", () => {
+    const asset: CatalogAsset = {
+      record: {
+        name: "aria.dev/test/purview-chain",
+        version: "2.0.0",
+        schema_version: "1.0.0",
+        description: "Test asset with purview + approval chain",
+        skills: [],
+        domains: [],
+        modules: [],
+        authors: [],
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        lifecycle_state: "published",
+      },
+      governance: {
+        sensitivity_tier: "highly_confidential",
+        approval_chain: ["compliance-team"],
+        required_purview_roles: ["purview:compliance-officer"],
+      },
+    };
+    const consumer = makeConsumerWithPurviewRoles([]);
+    const decision = checkGovernance(asset, consumer);
+    expect(decision.allowed).toBe(false);
+    expect(decision.contract_version).toBe("1.0.0");
+    expect(decision.approval_chain).toContain("compliance-team");
+  });
+
+  // --- sample asset assertions ---
+
+  it("financial-analyzer sample asset has required_purview_roles", () => {
+    const asset = sampleAssets.find(
+      (a) => a.record.name === "aria.dev/skills/financial-analyzer"
+    );
+    expect(asset).toBeDefined();
+    expect(asset!.governance.required_purview_roles).toBeDefined();
+    expect(asset!.governance.required_purview_roles!.length).toBeGreaterThan(0);
+  });
+
+  it("customer-insights sample asset has required_purview_roles", () => {
+    const asset = sampleAssets.find(
+      (a) => a.record.name === "aria.dev/skills/customer-insights"
+    );
+    expect(asset).toBeDefined();
+    expect(asset!.governance.required_purview_roles).toBeDefined();
+    expect(asset!.governance.required_purview_roles!.length).toBeGreaterThan(0);
+  });
+});
