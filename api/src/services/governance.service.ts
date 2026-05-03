@@ -3,6 +3,11 @@ import type { EffectiveAccessContext, NormalizedIdentity, PolicyDecision } from 
 import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 import { sampleAssets } from "../data/sample-assets.js";
 import { sensitivityCeilingFromIdentity } from "../middleware/auth.middleware.js";
+import {
+  emitLegacyHeaderUsed,
+  emitPolicyDeny,
+  type PolicyDenyReason,
+} from "./observability.service.js";
 
 // ---------------------------------------------------------------------------
 // Legacy header compatibility mode
@@ -50,15 +55,29 @@ export function checkGovernance(
   const name = asset.record.name;
   const version = asset.record.version;
 
-  // 1. Sensitivity ceiling check
-  if (tierLevel(governance.sensitivity_tier) > tierLevel(consumer.sensitivity_ceiling)) {
+  /** Build a deny decision and emit the corresponding observability event. */
+  function deny(reason: string, denyReason: PolicyDenyReason): PolicyDecision {
+    emitPolicyDeny({
+      asset_name: name,
+      asset_version: version,
+      consumer_id: consumer.consumer_id,
+      deny_reason: denyReason,
+    });
     return {
       contract_version: POLICY_CONTRACT_VERSION,
       allowed: false,
-      reason: `This asset is classified as "${governance.sensitivity_tier}" but your access level only permits "${consumer.sensitivity_ceiling}" assets.`,
+      reason,
       approval_chain: governance.approval_chain,
       action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
     };
+  }
+
+  // 1. Sensitivity ceiling check
+  if (tierLevel(governance.sensitivity_tier) > tierLevel(consumer.sensitivity_ceiling)) {
+    return deny(
+      `This asset is classified as "${governance.sensitivity_tier}" but your access level only permits "${consumer.sensitivity_ceiling}" assets.`,
+      "sensitivity_ceiling"
+    );
   }
 
   // 2. Consumer allow-list check
@@ -68,13 +87,10 @@ export function checkGovernance(
     !governance.allowed_consumers.includes(consumer.consumer_id) &&
     !governance.allowed_consumers.includes("all-employees")
   ) {
-    return {
-      contract_version: POLICY_CONTRACT_VERSION,
-      allowed: false,
-      reason: `Your team (${consumer.consumer_id}) does not have access to this asset. Access is restricted to: ${governance.allowed_consumers.join(", ")}.`,
-      approval_chain: governance.approval_chain,
-      action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
-    };
+    return deny(
+      `Your team (${consumer.consumer_id}) does not have access to this asset. Access is restricted to: ${governance.allowed_consumers.join(", ")}.`,
+      "consumer_not_allowed"
+    );
   }
 
   // 3. Entra group constraint check
@@ -84,13 +100,10 @@ export function checkGovernance(
       governance.allowed_entra_groups!.includes(g)
     );
     if (!hasGroup) {
-      return {
-        contract_version: POLICY_CONTRACT_VERSION,
-        allowed: false,
-        reason: `Access to this asset requires membership in one of the following Entra groups: ${governance.allowed_entra_groups.join(", ")}.`,
-        approval_chain: governance.approval_chain,
-        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
-      };
+      return deny(
+        `Access to this asset requires membership in one of the following Entra groups: ${governance.allowed_entra_groups.join(", ")}.`,
+        "entra_group_required"
+      );
     }
   }
 
@@ -101,13 +114,10 @@ export function checkGovernance(
       governance.allowed_entra_roles!.includes(r)
     );
     if (!hasRole) {
-      return {
-        contract_version: POLICY_CONTRACT_VERSION,
-        allowed: false,
-        reason: `Access to this asset requires one of the following Entra roles: ${governance.allowed_entra_roles.join(", ")}.`,
-        approval_chain: governance.approval_chain,
-        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
-      };
+      return deny(
+        `Access to this asset requires one of the following Entra roles: ${governance.allowed_entra_roles.join(", ")}.`,
+        "entra_role_required"
+      );
     }
   }
 
@@ -118,13 +128,10 @@ export function checkGovernance(
       governance.required_purview_roles!.includes(r)
     );
     if (!hasPurview) {
-      return {
-        contract_version: POLICY_CONTRACT_VERSION,
-        allowed: false,
-        reason: `Access to this asset requires one of the following purview roles: ${governance.required_purview_roles.join(", ")}.`,
-        approval_chain: governance.approval_chain,
-        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
-      };
+      return deny(
+        `Access to this asset requires one of the following purview roles: ${governance.required_purview_roles.join(", ")}.`,
+        "purview_role_required"
+      );
     }
   }
 
@@ -136,13 +143,10 @@ export function checkGovernance(
         tierLevel(dep.governance.sensitivity_tier) >
         tierLevel(governance.dependency_sensitivity_ceiling)
       ) {
-        return {
-          contract_version: POLICY_CONTRACT_VERSION,
-          allowed: false,
-          reason: `A dependency (${dep.record.name}) exceeds the allowed sensitivity ceiling of ${governance.dependency_sensitivity_ceiling}.`,
-          approval_chain: governance.approval_chain,
-          action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
-        };
+        return deny(
+          `A dependency (${dep.record.name}) exceeds the allowed sensitivity ceiling of ${governance.dependency_sensitivity_ceiling}.`,
+          "dependency_ceiling"
+        );
       }
     }
   }
@@ -217,17 +221,15 @@ export function parseConsumerContext(
   const hasLegacyHeaders =
     typeof consumerId === "string" || typeof ceiling === "string";
 
-  // Emit a warning when legacy headers are in active use outside dev/test so
-  // that operators can track migration progress.
-  const env = process.env.NODE_ENV ?? "development";
-  if (hasLegacyHeaders && env !== "development" && env !== "test") {
-    console.warn(
-      "[auth] Legacy header-based consumer context is in use " +
-        `(x-consumer-id: ${typeof consumerId === "string" ? consumerId : "(absent)"}, ` +
-        `x-sensitivity-ceiling: ${typeof ceiling === "string" ? ceiling : "(absent)"}). ` +
-        "Migrate to JWT bearer token authentication. " +
-        "Legacy header support will be removed on 2027-01-01."
-    );
+  // Emit a structured event when legacy headers are in active use so that
+  // operators can track migration progress via log aggregation / alerting.
+  // Counters increment in all environments; log emission is suppressed in
+  // "development" and "test" by the observability service itself.
+  if (hasLegacyHeaders) {
+    emitLegacyHeaderUsed({
+      consumer_id: typeof consumerId === "string" ? consumerId : "(absent)",
+      sensitivity_ceiling: typeof ceiling === "string" ? ceiling : "(absent)",
+    });
   }
 
   const resolvedConsumerId =

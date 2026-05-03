@@ -7,6 +7,7 @@ import catalogRouter from "./routes/catalog.js";
 import pluginsRouter from "./routes/plugins.js";
 import mcpRouter from "./routes/mcp.js";
 import { createAuthMiddleware } from "./middleware/auth.middleware.js";
+import { getCounters } from "./services/observability.service.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -56,6 +57,15 @@ app.use(createAuthMiddleware());
 // Health check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", version: "1.0.0", timestamp: new Date().toISOString() });
+});
+
+// Observability counters — in-process event counts since last restart
+app.get("/metrics", (_req, res) => {
+  res.json({
+    auth_enforce_mode: process.env.AUTH_ENFORCE === "true" ? "enforce" : "observe",
+    legacy_headers_mode: process.env.LEGACY_HEADERS_MODE !== "disabled" ? "enabled" : "disabled",
+    counters: getCounters(),
+  });
 });
 
 // Routes
