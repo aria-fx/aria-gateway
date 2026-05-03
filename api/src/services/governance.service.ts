@@ -77,7 +77,41 @@ export function checkGovernance(
     };
   }
 
-  // 3. Dependency sensitivity ceiling check
+  // 3. Entra group constraint check
+  if (governance.allowed_entra_groups && governance.allowed_entra_groups.length > 0) {
+    const consumerGroups = consumer.identity?.groups ?? [];
+    const hasGroup = consumerGroups.some((g) =>
+      governance.allowed_entra_groups!.includes(g)
+    );
+    if (!hasGroup) {
+      return {
+        contract_version: POLICY_CONTRACT_VERSION,
+        allowed: false,
+        reason: `Access to this asset requires membership in one of the following Entra groups: ${governance.allowed_entra_groups.join(", ")}.`,
+        approval_chain: governance.approval_chain,
+        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
+      };
+    }
+  }
+
+  // 4. Entra role constraint check
+  if (governance.allowed_entra_roles && governance.allowed_entra_roles.length > 0) {
+    const consumerRoles = consumer.identity?.roles ?? [];
+    const hasRole = consumerRoles.some((r) =>
+      governance.allowed_entra_roles!.includes(r)
+    );
+    if (!hasRole) {
+      return {
+        contract_version: POLICY_CONTRACT_VERSION,
+        allowed: false,
+        reason: `Access to this asset requires one of the following Entra roles: ${governance.allowed_entra_roles.join(", ")}.`,
+        approval_chain: governance.approval_chain,
+        action_url: `/catalog/assets/${encodeURIComponent(name)}/${version}/request-access`,
+      };
+    }
+  }
+
+  // 5. Dependency sensitivity ceiling check
   if (governance.dependency_sensitivity_ceiling) {
     const deps = resolveDependencies(asset);
     for (const dep of deps) {
