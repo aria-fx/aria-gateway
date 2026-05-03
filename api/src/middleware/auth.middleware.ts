@@ -7,12 +7,6 @@
  *                         Defaults to "false" (permissive / observability mode).
  *   ENTRA_TENANT_ID     - Azure AD tenant ID used to build the expected issuer URL.
  *   ENTRA_AUDIENCE      - Expected `aud` claim (app/client ID or URI).
- *   LEGACY_HEADERS_MODE - "enabled" (default) to honour x-consumer-id /
- *                         x-sensitivity-ceiling headers when no JWT is present.
- *                         Set to "disabled" to reject header-only requests with
- *                         an anonymous / public-only access context.
- *                         See governance.service.ts for full precedence rules.
- *                         @deprecated Will be removed on 2027-01-01.
  *
  * When AUTH_ENFORCE=false (default) the middleware still validates any token
  * that IS present (attaching req.identity on success) but never blocks a

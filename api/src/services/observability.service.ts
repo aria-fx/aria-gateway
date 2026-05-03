@@ -60,17 +60,9 @@ export interface PolicyDenyEvent {
   timestamp: string;
 }
 
-export interface LegacyHeaderEvent {
-  event: "auth.legacy_header_used";
-  consumer_id: string;
-  sensitivity_ceiling: string;
-  timestamp: string;
-}
-
 export type ObservabilityEvent =
   | AuthFailureEvent
-  | PolicyDenyEvent
-  | LegacyHeaderEvent;
+  | PolicyDenyEvent;
 
 // ---------------------------------------------------------------------------
 // In-memory counters
@@ -159,25 +151,6 @@ export function emitPolicyDeny(opts: {
     asset_version: opts.asset_version,
     consumer_id: opts.consumer_id,
     deny_reason: opts.deny_reason,
-    timestamp: new Date().toISOString(),
-  });
-}
-
-/**
- * Emit a legacy-header-used event and increment the corresponding counter.
- *
- * Call this when a request is served via x-consumer-id / x-sensitivity-ceiling
- * headers instead of a JWT bearer token.
- */
-export function emitLegacyHeaderUsed(opts: {
-  consumer_id: string;
-  sensitivity_ceiling: string;
-}): void {
-  inc("auth.legacy_header_used");
-  emit({
-    event: "auth.legacy_header_used",
-    consumer_id: opts.consumer_id,
-    sensitivity_ceiling: opts.sensitivity_ceiling,
     timestamp: new Date().toISOString(),
   });
 }

@@ -194,27 +194,11 @@ curl https://your-gateway-host/catalog/assets \
 
 Set `AUTH_ENFORCE=true` on the gateway to require a valid token on every request.
 
-> **Migration runbook:** For a step-by-step guide to issuing Entra tokens, migrating clients off legacy headers, and safely enabling enforce mode, see [`api/docs/auth-migration-runbook.md`](api/docs/auth-migration-runbook.md).
+> **Auth runbook:** For a step-by-step guide to issuing Entra tokens and safely enabling enforce mode, see [`api/docs/auth-migration-runbook.md`](api/docs/auth-migration-runbook.md).
 
-#### Legacy Consumer Headers (deprecated)
+> ~~**Legacy Consumer Headers**~~ — Header-based identity (`X-Consumer-Id` / `X-Sensitivity-Ceiling`) has been **removed** in v2.0.0.  All callers must use JWT bearer tokens.  Unauthenticated requests receive a `public`-only access context.
 
-When no JWT is present and `LEGACY_HEADERS_MODE=enabled` (default), the gateway
-accepts identity from headers instead:
-
-- `X-Consumer-Id` — your team identity (e.g., `hr-team`)
-- `X-Sensitivity-Ceiling` — your clearance level (`public` | `internal` | `confidential` | `highly_confidential`)
-
-```bash
-curl https://your-gateway-host/catalog/assets \
-  -H "X-Consumer-Id: hr-team" \
-  -H "X-Sensitivity-Ceiling: internal"
-```
-
-When neither header is provided the gateway defaults to `all-employees` / `internal` access.
-
-> **Deprecation notice:** Header-based auth will be removed on **2027-01-01**. Migrate to JWT bearer tokens.
-
-> **Policy Contract:** The identity, access, and decision types used internally are defined in the versioned Auth-Core Policy Contract (`v1.0.0`).  See [`api/docs/policy-contract.md`](api/docs/policy-contract.md) for the full contract specification, versioning strategy, and IDP extension points.
+> **Policy Contract:** The identity, access, and decision types used internally are defined in the versioned Auth-Core Policy Contract.  See [`api/docs/policy-contract.md`](api/docs/policy-contract.md) for the full contract specification, versioning strategy, and IDP extension points.
 
 ### Endpoints
 

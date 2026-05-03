@@ -124,21 +124,25 @@ describe("Governance service – policy contract integration", () => {
     expect(ctx.purview_roles).toEqual([]);
   });
 
-  it("parseConsumerContext returns EffectiveAccessContext with contract_version", () => {
-    const ctx = parseConsumerContext({
-      "x-consumer-id": "hr-team",
-      "x-sensitivity-ceiling": "internal",
-    });
+  it("parseConsumerContext returns EffectiveAccessContext with contract_version for authenticated user", () => {
+    const identity: NormalizedIdentity = {
+      contract_version: "1.0.0",
+      provider: "entra",
+      principal_id: "hr-team-user",
+      groups: [],
+      roles: ["aria-gateway-internal"],
+    };
+    const ctx = parseConsumerContext({}, identity);
     expect(ctx.contract_version).toBe("1.0.0");
-    expect(ctx.consumer_id).toBe("hr-team");
+    expect(ctx.consumer_id).toBe("hr-team-user");
     expect(ctx.sensitivity_ceiling).toBe("internal");
     expect(ctx.purview_roles).toEqual([]);
   });
 
-  it("parseConsumerContext defaults correctly with missing headers", () => {
+  it("parseConsumerContext returns anonymous/public context when no identity is provided", () => {
     const ctx = parseConsumerContext({});
-    expect(ctx.consumer_id).toBe("all-employees");
-    expect(ctx.sensitivity_ceiling).toBe("internal");
+    expect(ctx.consumer_id).toBe("anonymous");
+    expect(ctx.sensitivity_ceiling).toBe("public");
   });
 
   it("checkGovernance returns PolicyDecision with contract_version when allowed", () => {

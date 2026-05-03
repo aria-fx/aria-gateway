@@ -4,30 +4,9 @@ import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 import { sampleAssets } from "../data/sample-assets.js";
 import { sensitivityCeilingFromIdentity } from "../middleware/auth.middleware.js";
 import {
-  emitLegacyHeaderUsed,
   emitPolicyDeny,
   type PolicyDenyReason,
 } from "./observability.service.js";
-
-// ---------------------------------------------------------------------------
-// Legacy header compatibility mode
-// ---------------------------------------------------------------------------
-
-/**
- * Returns true when legacy header compatibility mode is active.
- *
- * Controlled by the LEGACY_HEADERS_MODE environment variable:
- *   "enabled"  (default) — x-consumer-id / x-sensitivity-ceiling headers are
- *               honoured as a fallback when no JWT identity is present.
- *   "disabled" — headers are ignored; unauthenticated requests receive an
- *               anonymous / public-only access context.
- *
- * @deprecated Legacy header mode will be removed on 2027-01-01.
- *             Migrate all callers to JWT bearer token authentication.
- */
-export function isLegacyHeadersMode(): boolean {
-  return process.env.LEGACY_HEADERS_MODE !== "disabled";
-}
 
 const TIER_ORDER: Record<SensitivityTier, number> = {
   public: 0,
@@ -176,20 +155,17 @@ export function getAnonymousConsumer(): ConsumerContext {
   };
 }
 
-// Parse consumer context from request headers, optionally enriched by a
-// validated JWT identity (produced by the auth middleware).
+// Parse consumer context from request headers, enriched by a validated JWT
+// identity (produced by the auth middleware).
 //
 // Precedence rules:
-//   1. JWT identity present  → JWT claims always win; legacy headers are ignored.
-//   2. No JWT, LEGACY_HEADERS_MODE=enabled (default)
-//                            → legacy x-consumer-id / x-sensitivity-ceiling
-//                              headers are used with sensible defaults.
-//                              A warning is emitted outside dev/test environments.
-//   3. No JWT, LEGACY_HEADERS_MODE=disabled
-//                            → headers are ignored; anonymous / public-only
-//                              access context is returned.
+//   1. JWT identity present  → JWT claims always win.
+//   2. No JWT               → anonymous / public-only access context returned.
+//
+// Note: Legacy header-based identity (x-consumer-id / x-sensitivity-ceiling)
+// has been removed as of v2.0.0. All callers must use JWT bearer tokens.
 export function parseConsumerContext(
-  headers: Record<string, string | string[] | undefined>,
+  _headers: Record<string, string | string[] | undefined>,
   identity?: NormalizedIdentity
 ): ConsumerContext {
   // Rule 1: JWT identity takes unconditional precedence.
@@ -203,47 +179,11 @@ export function parseConsumerContext(
     };
   }
 
-  // No JWT — check legacy header compatibility mode.
-  if (!isLegacyHeadersMode()) {
-    // Rule 3: legacy mode disabled → anonymous / public-only context.
-    return {
-      contract_version: POLICY_CONTRACT_VERSION,
-      consumer_id: "anonymous",
-      sensitivity_ceiling: "public",
-      purview_roles: [],
-    };
-  }
-
-  // Rule 2: legacy mode enabled → honour x-consumer-id / x-sensitivity-ceiling.
-  const consumerId = headers["x-consumer-id"];
-  const ceiling = headers["x-sensitivity-ceiling"];
-
-  const hasLegacyHeaders =
-    typeof consumerId === "string" || typeof ceiling === "string";
-
-  // Emit a structured event when legacy headers are in active use so that
-  // operators can track migration progress via log aggregation / alerting.
-  // Counters increment in all environments; log emission is suppressed in
-  // "development" and "test" by the observability service itself.
-  if (hasLegacyHeaders) {
-    emitLegacyHeaderUsed({
-      consumer_id: typeof consumerId === "string" ? consumerId : "(absent)",
-      sensitivity_ceiling: typeof ceiling === "string" ? ceiling : "(absent)",
-    });
-  }
-
-  const resolvedConsumerId =
-    typeof consumerId === "string" ? consumerId : "all-employees";
-
-  const resolvedCeiling: SensitivityTier =
-    typeof ceiling === "string" && ceiling in TIER_ORDER
-      ? (ceiling as SensitivityTier)
-      : "internal";
-
+  // Rule 2: No JWT → anonymous / public-only context.
   return {
     contract_version: POLICY_CONTRACT_VERSION,
-    consumer_id: resolvedConsumerId,
-    sensitivity_ceiling: resolvedCeiling,
+    consumer_id: "anonymous",
+    sensitivity_ceiling: "public",
     purview_roles: [],
   };
 }

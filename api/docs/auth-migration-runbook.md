@@ -67,7 +67,6 @@ See the [Extension Points](./policy-contract.md#extension-points-for-future-idps
 | `AUTH_ENFORCE` | `false` | Set to `true` to reject requests with a missing or invalid token with `401`. In the default `false` (observe) mode, token failures are logged but requests are not blocked. |
 | `ENTRA_TENANT_ID` | — | Azure AD tenant ID. Automatically builds the issuer URL (`https://login.microsoftonline.com/<tid>/v2.0`) and the JWKS endpoint. **Required** for JWT validation. |
 | `ENTRA_AUDIENCE` | — | Expected `aud` claim — the App Registration's Application ID URI or client ID (e.g. `api://my-gateway-app`). **Required** for JWT validation. |
-| `LEGACY_HEADERS_MODE` | `enabled` | Set to `disabled` to stop honouring `x-consumer-id` / `x-sensitivity-ceiling` headers. **Deprecated — will be removed 2027-01-01.** |
 
 ### Derived URLs (set automatically from `ENTRA_TENANT_ID`)
 
@@ -122,9 +121,6 @@ ENTRA_AUDIENCE=api://<client-id>
 
 # Optional: flip to enforce mode once all clients are migrated
 AUTH_ENFORCE=false
-
-# Optional: disable legacy header fallback after full migration
-LEGACY_HEADERS_MODE=enabled
 ```
 
 ### Step 5 — Assign roles to consumer applications
@@ -234,7 +230,7 @@ client.DefaultRequestHeaders.Authorization =
 #### 3. Monitor migration progress
 
 While `AUTH_ENFORCE=false` (default), failed and missing tokens are logged but not blocked.  
-Use `GET /metrics` to track how many requests are still using legacy headers:
+Use `GET /metrics` to track how many requests are still missing valid tokens:
 
 ```bash
 curl https://your-gateway-host/metrics
@@ -245,7 +241,6 @@ Look for:
 ```json
 {
   "counters": {
-    "auth.legacy_header_used": 128,      // still on headers — must reach 0
     "auth.failure.observe.token_missing": 42,  // no token at all
     "auth.failure.observe.token_invalid": 7    // token present but invalid
   }
@@ -254,23 +249,12 @@ Look for:
 
 See [`rollout-observability.md`](./rollout-observability.md) for full log query examples (CloudWatch, Datadog, Loki).
 
-#### 4. Disable legacy headers
+#### 4. Enable enforcement
 
-Once `auth.legacy_header_used` has been zero for at least 7 consecutive days:
-
-```bash
-LEGACY_HEADERS_MODE=disabled
-```
-
-This causes any remaining header-only requests to receive a `public`-only access context (not a 401), ensuring existing unauthenticated flows are not immediately broken.
-
-#### 5. Enable enforcement
-
-Once `auth.failure.observe.token_missing` and `auth.failure.observe.token_invalid` have also been zero for 7 consecutive days:
+Once `auth.failure.observe.token_missing` and `auth.failure.observe.token_invalid` have been zero for 7 consecutive days:
 
 ```bash
 AUTH_ENFORCE=true
-LEGACY_HEADERS_MODE=disabled
 ```
 
 From this point, any request without a valid bearer token receives `401 Unauthorized`.
@@ -410,10 +394,49 @@ Use this checklist when deploying the gateway or onboarding a new consumer team.
 
 - [ ] `auth.failure.observe.token_missing` = 0 for 7 consecutive days.
 - [ ] `auth.failure.observe.token_invalid` = 0 for 7 consecutive days.
-- [ ] `auth.legacy_header_used` = 0 for 7 consecutive days.
-- [ ] `LEGACY_HEADERS_MODE=disabled` deployed and stable.
 - [ ] Rollback plan documented (instant revert to `AUTH_ENFORCE=false` via env-var change).
 - [ ] `AUTH_ENFORCE=true` deployed.
+
+### Post-cutover validation checklist
+
+Use this checklist after deploying gateway v2.0.0 (legacy auth path removal) to
+confirm no regressions and no remaining production dependency on the removed code.
+
+#### Sign-off requirements
+
+- [ ] **Explicit sign-off obtained** from the platform owner before deploying to production.
+- [ ] Change approved in the auth-core cutover issue and linked PR.
+
+#### Code / configuration
+
+- [ ] `LEGACY_HEADERS_MODE` environment variable removed from all deployment configs
+      (`.env`, Helm values, Kubernetes secrets, CI/CD pipelines).
+- [ ] `X-Consumer-Id` and `X-Sensitivity-Ceiling` headers removed from all client
+      request code, load-test scripts, and integration tests.
+- [ ] OpenAPI/Swagger clients regenerated from the updated `/openapi.json` spec
+      (the `ConsumerHeaders` security scheme no longer exists).
+
+#### Observability
+
+- [ ] `GET /metrics` response no longer contains a `legacy_headers_mode` field.
+- [ ] `auth.legacy_header_used` counter absent from metrics (counter no longer emitted).
+- [ ] No log entries with `"event":"auth.legacy_header_used"` in production logs
+      for at least 24 hours after deployment.
+
+#### Functional smoke tests
+
+- [ ] `GET /catalog/assets` with no auth returns only `public`-tier assets.
+- [ ] `GET /catalog/assets/:name/:version/manifest` for a `public` asset returns `200` without a token.
+- [ ] `GET /catalog/assets/:name/:version/manifest` for an `internal` asset returns `403` without a token.
+- [ ] `GET /catalog/assets/:name/:version/manifest` for an `internal` asset returns `200` with a valid JWT that grants `internal` ceiling.
+- [ ] `GET /health` returns `200`.
+- [ ] `GET /metrics` returns `200` with `auth_enforce_mode` field.
+
+#### Final release notes
+
+- [ ] CHANGELOG entry for v2.0.0 published and visible in the repository.
+- [ ] Deprecation notice updated in README — "Header-based auth has been removed" (not just deprecated).
+- [ ] All consumer teams notified of the breaking change via the standard communication channel.
 
 ---
 
