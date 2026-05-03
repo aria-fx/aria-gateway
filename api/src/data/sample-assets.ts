@@ -256,6 +256,8 @@ export const sampleAssets: CatalogAsset[] = [
       max_data_retention_days: 365,
       audit_level: "full",
       compliance_frameworks: ["SOX", "PCI-DSS"],
+      allowed_entra_groups: ["fin-analysts-sg", "fin-leads-sg"],
+      allowed_entra_roles: ["FinancialDataReader", "FinancialDataWriter"],
     },
   },
   {
@@ -300,6 +302,8 @@ export const sampleAssets: CatalogAsset[] = [
       max_data_retention_days: 180,
       audit_level: "full",
       compliance_frameworks: ["GDPR", "SOC2"],
+      allowed_entra_groups: ["sales-team-sg", "customer-success-sg"],
+      allowed_entra_roles: ["CRMDataReader"],
     },
   },
 ];

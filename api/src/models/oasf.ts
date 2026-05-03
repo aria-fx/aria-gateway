@@ -64,6 +64,20 @@ export interface OasfGovernance {
   audit_level?: "minimal" | "standard" | "full";
   dependency_sensitivity_ceiling?: SensitivityTier;
   compliance_frameworks?: string[];
+  /**
+   * Entra group object IDs or display names that are permitted to access
+   * this asset.  When set, the consumer must present a validated JWT whose
+   * `groups` claim contains at least one of the listed values.
+   * Omit (or leave empty) to impose no group-level constraint.
+   */
+  allowed_entra_groups?: string[];
+  /**
+   * Entra application roles (or OAuth scopes) that are required to access
+   * this asset.  When set, the consumer must present a validated JWT whose
+   * `roles`/`scp` claims contain at least one of the listed values.
+   * Omit (or leave empty) to impose no role-level constraint.
+   */
+  allowed_entra_roles?: string[];
 }
 
 export interface CatalogAsset {
