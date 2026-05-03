@@ -194,6 +194,8 @@ curl https://your-gateway-host/catalog/assets \
 
 Set `AUTH_ENFORCE=true` on the gateway to require a valid token on every request.
 
+> **Migration runbook:** For a step-by-step guide to issuing Entra tokens, migrating clients off legacy headers, and safely enabling enforce mode, see [`api/docs/auth-migration-runbook.md`](api/docs/auth-migration-runbook.md).
+
 #### Legacy Consumer Headers (deprecated)
 
 When no JWT is present and `LEGACY_HEADERS_MODE=enabled` (default), the gateway
@@ -263,8 +265,11 @@ aria-gateway/
 │   │   ├── services/       # Catalog, governance, .mcpb services
 │   │   └── routes/         # catalog, plugins (ChatGPT), mcp (Claude)
 │   ├── docs/               # Contract documentation and JSON Schema
+│   │   ├── auth-migration-runbook.md   # Gateway auth migration and operations runbook
 │   │   ├── policy-contract.md          # Contract spec, versioning, IDP guide
-│   │   └── policy-contract.schema.json # JSON Schema for contract objects
+│   │   ├── policy-contract.schema.json # JSON Schema for contract objects
+│   │   ├── conformance-fixtures.md     # Cross-language conformance fixture guide
+│   │   └── rollout-observability.md    # Structured log events and rollout procedure
 │   ├── tests/              # Vitest + Supertest API tests
 │   └── Dockerfile
 ├── ui/                     # Web Catalog UI (React + TypeScript + Tailwind)
