@@ -212,6 +212,60 @@ The decision shape is IDP-agnostic and requires no changes.
 
 ---
 
+## Legacy Header Compatibility Mode
+
+> **Status:** Deprecated — targeted for removal on **2027-01-01**.
+
+To support controlled migration from the previous header-based consumer context
+to token-based identity, the gateway provides a **legacy header compatibility mode**
+controlled by the `LEGACY_HEADERS_MODE` environment variable.
+
+### Precedence Rules
+
+The following rules are applied **in order** inside `parseConsumerContext`:
+
+| Priority | Condition | Behaviour |
+|----------|-----------|-----------|
+| **1 (highest)** | Validated JWT identity present | JWT claims always win. `principal_id` → `consumer_id`; role-derived ceiling → `sensitivity_ceiling`. Legacy headers are silently ignored. |
+| **2** | No JWT; `LEGACY_HEADERS_MODE=enabled` (default) | `x-consumer-id` and `x-sensitivity-ceiling` headers are used with sensible defaults (`"all-employees"` / `"internal"`). A warning is logged in non-development environments (see below). |
+| **3 (lowest)** | No JWT; `LEGACY_HEADERS_MODE=disabled` | Headers are ignored. An anonymous / public-only context is returned (`consumer_id="anonymous"`, `sensitivity_ceiling="public"`). |
+
+### Configuration
+
+Set the environment variable on your deployment:
+
+```bash
+# Enable legacy header compatibility (default — backward-compatible)
+LEGACY_HEADERS_MODE=enabled
+
+# Disable — headers are ignored; unauthenticated requests get public-only access
+LEGACY_HEADERS_MODE=disabled
+```
+
+### Observability
+
+When legacy headers are **actively used** (mode enabled, no JWT present, at least one
+of `x-consumer-id` / `x-sensitivity-ceiling` is provided) and the runtime environment
+is **not** `development` or `test`, the gateway emits a structured warning log:
+
+```
+[auth] Legacy header-based consumer context is in use
+       (x-consumer-id: hr-team, x-sensitivity-ceiling: internal).
+       Migrate to JWT bearer token authentication.
+       Legacy header support will be removed on 2027-01-01.
+```
+
+This allows platform teams to track adoption progress via log aggregation / alerting.
+
+### Migration Guide
+
+1. **Issue Entra tokens** to your consumers (application registrations or managed identities).
+2. **Switch clients** to send `Authorization: Bearer <token>` instead of the legacy headers.
+3. **Set `LEGACY_HEADERS_MODE=disabled`** once all clients are migrated to block any remaining header-only requests.
+4. After **2027-01-01**, support for `LEGACY_HEADERS_MODE=enabled` will be dropped entirely.
+
+---
+
 ## Changelog
 
 See [CHANGELOG.md](../../../CHANGELOG.md) for the full history.
