@@ -9,7 +9,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   emitAuthFailure,
   emitPolicyDeny,
-  emitLegacyHeaderUsed,
   getCounters,
   resetCounters,
 } from "../src/services/observability.service.js";
@@ -191,25 +190,6 @@ describe("emitPolicyDeny — log emission", () => {
 });
 
 // ---------------------------------------------------------------------------
-// emitLegacyHeaderUsed
-// ---------------------------------------------------------------------------
-
-describe("emitLegacyHeaderUsed — counter increments", () => {
-  beforeEach(() => resetCounters());
-
-  it("increments the auth.legacy_header_used counter", () => {
-    emitLegacyHeaderUsed({ consumer_id: "hr-team", sensitivity_ceiling: "internal" });
-    expect(getCounters()["auth.legacy_header_used"]).toBe(1);
-  });
-
-  it("accumulates across multiple calls", () => {
-    emitLegacyHeaderUsed({ consumer_id: "a", sensitivity_ceiling: "internal" });
-    emitLegacyHeaderUsed({ consumer_id: "b", sensitivity_ceiling: "public" });
-    expect(getCounters()["auth.legacy_header_used"]).toBe(2);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Integration: checkGovernance emits policy deny events
 // ---------------------------------------------------------------------------
 
@@ -348,12 +328,12 @@ describe("createAuthMiddleware — enforcing mode emits enforce counters", () =>
 describe("GET /metrics endpoint", () => {
   beforeEach(() => resetCounters());
 
-  it("returns auth_enforce_mode, legacy_headers_mode, and counters", async () => {
+  it("returns auth_enforce_mode and counters", async () => {
     const { default: app } = await import("../src/index.js");
     const res = await request(app).get("/metrics");
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("auth_enforce_mode");
-    expect(res.body).toHaveProperty("legacy_headers_mode");
+    expect(res.body).not.toHaveProperty("legacy_headers_mode");
     expect(res.body).toHaveProperty("counters");
     expect(typeof res.body.counters).toBe("object");
   });

@@ -65,7 +65,7 @@ function buildOpenApiSpec() {
           summary: "List or search available AI skills and agents",
           description:
             "Returns all AI skills and agents in the catalog that the user is authorized to see. Use the query parameters to filter by skill type, business domain, or keyword.",
-          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
+          security: [{ BearerAuth: [] }],
           parameters: [
             {
               name: "skill",
@@ -112,7 +112,7 @@ function buildOpenApiSpec() {
         get: {
           operationId: "getAssetManifest",
           summary: "Get full OASF record and governance details for an asset",
-          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
+          security: [{ BearerAuth: [] }],
           parameters: [
             {
               name: "name",
@@ -145,7 +145,7 @@ function buildOpenApiSpec() {
           operationId: "installAsset",
           summary: "Get installation instructions for an asset",
           description: "Returns platform-specific configuration snippets for installing the asset into Claude Desktop, VS Code, or Agent Framework.",
-          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
+          security: [{ BearerAuth: [] }],
           parameters: [
             {
               name: "name",
@@ -195,16 +195,6 @@ function buildOpenApiSpec() {
             "Entra (Azure AD) JWT bearer token. Obtain via OAuth 2.0 client-credentials or authorization-code flow against your tenant. " +
             "Roles `aria-gateway-admin`, `aria-gateway-confidential`, and `aria-gateway-internal` control the sensitivity ceiling. " +
             "Set AUTH_ENFORCE=true on the gateway to require this header.",
-        },
-        ConsumerHeaders: {
-          type: "apiKey",
-          in: "header",
-          name: "X-Consumer-Id",
-          description:
-            "Legacy header-based identity. Supply `X-Consumer-Id` (e.g. `hr-team`) and optionally " +
-            "`X-Sensitivity-Ceiling` (`public` | `internal` | `confidential` | `highly_confidential`). " +
-            "Accepted when no JWT is present and LEGACY_HEADERS_MODE is `enabled` (default). " +
-            "Deprecated — will be removed 2027-01-01.",
         },
       },
       schemas: {

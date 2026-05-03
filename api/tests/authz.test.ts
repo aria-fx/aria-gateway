@@ -189,22 +189,17 @@ describe("401 auth enforcement — MCP routes", () => {
 // ===========================================================================
 // 403 — Governance denial with action-guidance payload
 //
-// Uses the default non-enforcing app (legacy header auth) to isolate
-// governance failures from authentication failures.
+// Uses the default non-enforcing app with no auth (anonymous/public context)
+// to isolate governance failures from authentication failures.
 // ===========================================================================
 
 describe("403 governance denial — catalog routes include action-guidance payload", () => {
   const restrictedName = encodeURIComponent("aria.dev/skills/financial-analyzer");
   const restrictedVersion = "1.0.0";
-  const lowCeilingHeaders = {
-    "X-Consumer-Id": "all-employees",
-    "X-Sensitivity-Ceiling": "internal",
-  };
 
   it("manifest route: 403 includes reason, action_url, approval_chain, contract_version", async () => {
     const res = await request(app)
-      .get(`/catalog/assets/${restrictedName}/${restrictedVersion}/manifest`)
-      .set(lowCeilingHeaders);
+      .get(`/catalog/assets/${restrictedName}/${restrictedVersion}/manifest`);
 
     expect(res.status).toBe(403);
     expect(res.body.error).toContain("Access denied");
@@ -219,7 +214,6 @@ describe("403 governance denial — catalog routes include action-guidance paylo
   it("install route: 403 includes reason, action_url, approval_chain, contract_version", async () => {
     const res = await request(app)
       .post(`/catalog/assets/${restrictedName}/${restrictedVersion}/install`)
-      .set(lowCeilingHeaders)
       .send({ target: "claude-desktop" });
 
     expect(res.status).toBe(403);
@@ -232,8 +226,7 @@ describe("403 governance denial — catalog routes include action-guidance paylo
 
   it("mcpb download route: 403 includes reason, action_url, contract_version", async () => {
     const res = await request(app)
-      .get(`/catalog/assets/${restrictedName}/${restrictedVersion}/mcpb`)
-      .set(lowCeilingHeaders);
+      .get(`/catalog/assets/${restrictedName}/${restrictedVersion}/mcpb`);
 
     expect(res.status).toBe(403);
     expect(res.body.reason).toBeTruthy();
@@ -262,11 +255,9 @@ describe("Governance bypass prevention — manifest route is always gated", () =
   });
 
   it("returns 200 and exposes manifest record when governance allows", async () => {
-    const name = encodeURIComponent("aria.dev/skills/hr-policy-lookup");
+    const name = encodeURIComponent("aria.dev/skills/code-review");
     const res = await request(app)
-      .get(`/catalog/assets/${name}/1.2.0/manifest`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+      .get(`/catalog/assets/${name}/1.5.2/manifest`);
 
     expect(res.status).toBe(200);
     expect(res.body.record).toBeDefined();
@@ -276,9 +267,7 @@ describe("Governance bypass prevention — manifest route is always gated", () =
   it("returns 404 for a non-existent asset (governance check is not reached)", async () => {
     const name = encodeURIComponent("aria.dev/skills/does-not-exist");
     const res = await request(app)
-      .get(`/catalog/assets/${name}/9.9.9/manifest`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "highly_confidential");
+      .get(`/catalog/assets/${name}/9.9.9/manifest`);
 
     expect(res.status).toBe(404);
   });
@@ -289,15 +278,9 @@ describe("Governance bypass prevention — manifest route is always gated", () =
 // ===========================================================================
 
 describe("MCP governance denial — tool responses include actionable guidance", () => {
-  const lowCeilingHeaders = {
-    "X-Consumer-Id": "all-employees",
-    "X-Sensitivity-Ceiling": "internal",
-  };
-
   it("get_asset_detail denial includes 'Access denied' and a request-access URL", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set(lowCeilingHeaders)
       .send({
         jsonrpc: "2.0",
         id: 1,
@@ -320,7 +303,6 @@ describe("MCP governance denial — tool responses include actionable guidance",
   it("install_asset denial includes permission notice and a request-access URL", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set(lowCeilingHeaders)
       .send({
         jsonrpc: "2.0",
         id: 2,

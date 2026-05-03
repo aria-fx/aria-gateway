@@ -11,6 +11,58 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [2.0.0] – 2026-05-03
+
+### Removed — Legacy Header Auth Path (Breaking Change)
+
+**Closes:** Auth Core: Final cutover and legacy auth path removal
+
+#### What changed
+
+The deprecated `x-consumer-id` / `x-sensitivity-ceiling` header-based identity path
+has been permanently removed.  All consumers **must** use JWT bearer tokens.
+
+| Component | Change |
+|-----------|--------|
+| `governance.service.ts` | `isLegacyHeadersMode()` removed. `parseConsumerContext()` now accepts only JWT identity; unauthenticated requests receive anonymous / public-only context. The `LEGACY_HEADERS_MODE` environment variable is no longer read. |
+| `observability.service.ts` | `emitLegacyHeaderUsed()` and the `LegacyHeaderEvent` type removed. The `auth.legacy_header_used` counter will no longer appear in `/metrics` output. |
+| `index.ts` | `X-Consumer-Id` and `X-Sensitivity-Ceiling` removed from CORS `allowedHeaders`. The `legacy_headers_mode` field removed from the `/metrics` response. |
+| `routes/plugins.ts` | `ConsumerHeaders` security scheme removed from the OpenAPI spec. All catalog operations now require `BearerAuth` only. |
+| `auth.middleware.ts` | `LEGACY_HEADERS_MODE` environment variable documentation removed. |
+
+#### Migration
+
+If you have not yet migrated to JWT bearer tokens, refer to the
+[Auth Migration Runbook](api/docs/auth-migration-runbook.md).
+
+**Post-cutover environment variables to clean up:**
+
+```bash
+# Remove these — they are no longer read:
+LEGACY_HEADERS_MODE=enabled   # ← delete this line
+```
+
+**Post-cutover recommended settings:**
+
+```bash
+AUTH_ENFORCE=true   # Require a valid JWT on every request
+```
+
+#### Tightened defaults for governed routes
+
+Unauthenticated requests now receive an **anonymous / public-only** access context
+(`consumer_id="anonymous"`, `sensitivity_ceiling="public"`).  Assets classified
+as `internal`, `confidential`, or `highly_confidential` will return `403` for
+unauthenticated callers.
+
+To require a valid JWT on every request (recommended for production), set:
+
+```bash
+AUTH_ENFORCE=true
+```
+
+---
+
 ## [1.0.0] – 2026-05-02
 
 ### Added

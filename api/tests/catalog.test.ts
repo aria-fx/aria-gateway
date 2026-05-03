@@ -11,22 +11,21 @@ describe("Health", () => {
 });
 
 describe("Catalog API", () => {
-  it("GET /catalog/assets returns published assets for all-employees", async () => {
-    const res = await request(app)
-      .get("/catalog/assets")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets returns published public assets when unauthenticated", async () => {
+    const res = await request(app).get("/catalog/assets");
 
     expect(res.status).toBe(200);
     expect(res.body.total).toBeGreaterThan(0);
     expect(Array.isArray(res.body.assets)).toBe(true);
+    // Unauthenticated requests receive public-only context; only public-tier
+    // assets should be visible.
+    for (const asset of res.body.assets) {
+      expect(asset.sensitivity_tier).toBe("public");
+    }
   });
 
-  it("GET /catalog/assets filters by keyword", async () => {
-    const res = await request(app)
-      .get("/catalog/assets?keyword=hr")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets filters by keyword for public assets", async () => {
+    const res = await request(app).get("/catalog/assets?keyword=code");
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.assets)).toBe(true);
@@ -36,15 +35,12 @@ describe("Catalog API", () => {
         asset.name.toLowerCase() +
         asset.description.toLowerCase() +
         asset.tags.join(" ").toLowerCase();
-      expect(haystack).toContain("hr");
+      expect(haystack).toContain("code");
     }
   });
 
-  it("GET /catalog/assets filters by domain", async () => {
-    const res = await request(app)
-      .get("/catalog/assets?domain=engineering")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets filters by domain for public assets", async () => {
+    const res = await request(app).get("/catalog/assets?domain=engineering");
 
     expect(res.status).toBe(200);
     for (const asset of res.body.assets) {
@@ -52,15 +48,12 @@ describe("Catalog API", () => {
     }
   });
 
-  it("GET /catalog/assets hides highly_confidential from internal users", async () => {
-    const res = await request(app)
-      .get("/catalog/assets")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets returns only public assets when unauthenticated", async () => {
+    const res = await request(app).get("/catalog/assets");
 
     expect(res.status).toBe(200);
     for (const asset of res.body.assets) {
-      expect(asset.sensitivity_tier).not.toBe("highly_confidential");
+      expect(asset.sensitivity_tier).toBe("public");
     }
   });
 
@@ -79,46 +72,36 @@ describe("Catalog API", () => {
     expect(res.status).toBe(404);
   });
 
-  it("GET /catalog/assets/:name/:version/manifest returns full manifest", async () => {
-    const name = encodeURIComponent("aria.dev/skills/document-summarizer");
-    const res = await request(app)
-      .get(`/catalog/assets/${name}/1.2.0/manifest`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets/:name/:version/manifest returns full manifest for a public asset", async () => {
+    const name = encodeURIComponent("aria.dev/skills/code-review");
+    const res = await request(app).get(`/catalog/assets/${name}/1.5.2/manifest`);
 
-    // 404 or 200 depending on exact version; just check it doesn't crash
-    expect([200, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(res.body.record).toBeDefined();
+    expect(res.body.governance).toBeDefined();
   });
 
-  it("GET /catalog/assets/:name/:version/manifest returns 403 for insufficient clearance", async () => {
+  it("GET /catalog/assets/:name/:version/manifest returns 403 for unauthenticated access to a non-public asset", async () => {
     const name = encodeURIComponent("aria.dev/skills/financial-analyzer");
-    const res = await request(app)
-      .get(`/catalog/assets/${name}/1.0.0/manifest`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+    const res = await request(app).get(`/catalog/assets/${name}/1.0.0/manifest`);
 
     expect(res.status).toBe(403);
     expect(res.body.error).toContain("Access denied");
   });
 
-  it("GET /catalog/assets/:name/:version/mcpb returns mcpb bundle", async () => {
-    const name = encodeURIComponent("aria.dev/skills/hr-policy-lookup");
-    const res = await request(app)
-      .get(`/catalog/assets/${name}/1.2.0/mcpb`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
+  it("GET /catalog/assets/:name/:version/mcpb returns mcpb bundle for a public asset", async () => {
+    const name = encodeURIComponent("aria.dev/skills/code-review");
+    const res = await request(app).get(`/catalog/assets/${name}/1.5.2/mcpb`);
 
     expect(res.status).toBe(200);
     expect(res.body.schema_version).toBe("1.0");
     expect(res.body.mcp_server).toBeDefined();
   });
 
-  it("POST /catalog/assets/:name/:version/install returns config snippet", async () => {
-    const name = encodeURIComponent("aria.dev/skills/document-summarizer");
+  it("POST /catalog/assets/:name/:version/install returns config snippet for a public asset", async () => {
+    const name = encodeURIComponent("aria.dev/skills/code-review");
     const res = await request(app)
-      .post(`/catalog/assets/${name}/3.0.1/install`)
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal")
+      .post(`/catalog/assets/${name}/1.5.2/install`)
       .send({ target: "claude-desktop" });
 
     expect(res.status).toBe(200);
@@ -179,12 +162,10 @@ describe("Plugin Manifests", () => {
     expect(res.body.components.securitySchemes.BearerAuth.bearerFormat).toBe("JWT");
   });
 
-  it("GET /openapi.json includes ConsumerHeaders security scheme", async () => {
+  it("GET /openapi.json does not include ConsumerHeaders security scheme (removed)", async () => {
     const res = await request(app).get("/openapi.json");
     expect(res.status).toBe(200);
-    expect(res.body.components.securitySchemes.ConsumerHeaders).toBeDefined();
-    expect(res.body.components.securitySchemes.ConsumerHeaders.type).toBe("apiKey");
-    expect(res.body.components.securitySchemes.ConsumerHeaders.in).toBe("header");
+    expect(res.body.components.securitySchemes.ConsumerHeaders).toBeUndefined();
   });
 
   it("GET /openapi.json has global security requirement", async () => {
@@ -220,8 +201,6 @@ describe("MCP Server", () => {
   it("POST /mcp initialize returns server capabilities", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal")
       .send({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
 
     expect(res.status).toBe(200);
@@ -232,8 +211,6 @@ describe("MCP Server", () => {
   it("POST /mcp tools/list returns tool definitions", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal")
       .send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
 
     expect(res.status).toBe(200);
@@ -244,28 +221,24 @@ describe("MCP Server", () => {
     expect(toolNames).toContain("install_asset");
   });
 
-  it("POST /mcp tools/call search_assets returns results", async () => {
+  it("POST /mcp tools/call search_assets returns public asset results", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal")
       .send({
         jsonrpc: "2.0",
         id: 3,
         method: "tools/call",
-        params: { name: "search_assets", arguments: { keyword: "document" } },
+        params: { name: "search_assets", arguments: { keyword: "code" } },
       });
 
     expect(res.status).toBe(200);
     expect(res.body.result.content[0].type).toBe("text");
-    expect(res.body.result.content[0].text).toContain("document");
+    expect(res.body.result.content[0].text).toContain("code");
   });
 
-  it("POST /mcp tools/call install_asset returns installation instructions", async () => {
+  it("POST /mcp tools/call install_asset returns installation instructions for a public asset", async () => {
     const res = await request(app)
       .post("/mcp")
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal")
       .send({
         jsonrpc: "2.0",
         id: 4,
@@ -273,8 +246,8 @@ describe("MCP Server", () => {
         params: {
           name: "install_asset",
           arguments: {
-            name: "aria.dev/skills/document-summarizer",
-            version: "3.0.1",
+            name: "aria.dev/skills/code-review",
+            version: "1.5.2",
             target: "claude-desktop",
           },
         },
@@ -294,3 +267,4 @@ describe("MCP Server", () => {
     expect(res.body.error.code).toBe(-32601);
   });
 });
+

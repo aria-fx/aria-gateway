@@ -10,15 +10,12 @@
  *   - valid token + allowed policy → 200  (catalog list, manifest, install)
  *   - valid token + denied policy → 403  (manifest, install; response includes
  *                                         reason, action_url, contract_version)
- *   - compatibility mode header flow     (LEGACY_HEADERS_MODE enabled/disabled
- *                                         exercised via HTTP request with Supertest)
  *
  * Tests run against an isolated enforcing Express app (JWT key pair generated
- * locally — no live network calls) and against the main non-enforcing app for
- * legacy header compatibility mode cases.
+ * locally — no live network calls).
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { generateKeyPair } from "node:crypto";
 import { promisify } from "node:util";
@@ -26,7 +23,6 @@ import { SignJWT, importPKCS8, importSPKI, type KeyLike } from "jose";
 import express from "express";
 import { createAuthMiddleware } from "../src/middleware/auth.middleware.js";
 import catalogRouter from "../src/routes/catalog.js";
-import app from "../src/index.js";
 
 // ---------------------------------------------------------------------------
 // Local JWT infrastructure — avoids any live network calls to Entra
@@ -273,74 +269,16 @@ describe("403 — valid JWT token with denied policy on catalog routes (enforcin
 });
 
 // ===========================================================================
-// Compatibility mode header flow
+// 401 — missing token on catalog routes (enforcing mode)
 //
-// Tests the LEGACY_HEADERS_MODE environment variable toggle at the HTTP level
-// using Supertest against the non-enforcing main app.  The three cases that
-// matter end-to-end are:
-//
-//   1. Mode enabled (default): x-sensitivity-ceiling header honoured →
-//      "internal" ceiling grants access to an "internal" asset.
-//   2. Mode enabled (default): low ceiling header → 403 for "highly_confidential"
-//      asset, response includes reason and contract_version.
-//   3. Mode disabled: x-consumer-id / x-sensitivity-ceiling headers ignored →
-//      anonymous/public-only context → 403 even for an "internal" asset.
+// Tests that the enforcing middleware rejects requests with no bearer token
+// with a 401 on all three catalog routes.
 // ===========================================================================
 
-describe("compatibility mode — LEGACY_HEADERS_MODE header flow (non-enforcing app)", () => {
-  // Capture the value before each test so env mutations are fully isolated even
-  // when the suite runs alongside other files that touch the same variable.
-  let savedMode: string | undefined;
-
-  beforeEach(() => {
-    savedMode = process.env.LEGACY_HEADERS_MODE;
-  });
-
-  afterEach(() => {
-    if (savedMode === undefined) {
-      delete process.env.LEGACY_HEADERS_MODE;
-    } else {
-      process.env.LEGACY_HEADERS_MODE = savedMode;
-    }
-  });
-
-  it("mode enabled (default): x-sensitivity-ceiling header grants access to an internal asset", async () => {
-    delete process.env.LEGACY_HEADERS_MODE; // default = enabled
-    const res = await request(app)
-      .get(
-        `/catalog/assets/${accessibleName}/${accessibleVersion}/manifest`
-      )
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
-    expect(res.status).toBe(200);
-    expect(res.body.record).toBeDefined();
-    expect(res.body.governance).toBeDefined();
-  });
-
-  it("mode enabled (default): internal ceiling header denies access to a highly_confidential asset with reason", async () => {
-    delete process.env.LEGACY_HEADERS_MODE; // default = enabled
-    const res = await request(app)
-      .get(
-        `/catalog/assets/${restrictedName}/${restrictedVersion}/manifest`
-      )
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
-    expect(res.status).toBe(403);
-    expect(res.body.reason).toBeTruthy();
-    expect(res.body.contract_version).toBe("1.0.0");
-  });
-
-  it("mode disabled: legacy headers are ignored; internal asset is denied with public-only context", async () => {
-    process.env.LEGACY_HEADERS_MODE = "disabled";
-    const res = await request(app)
-      .get(
-        `/catalog/assets/${accessibleName}/${accessibleVersion}/manifest`
-      )
-      .set("X-Consumer-Id", "all-employees")
-      .set("X-Sensitivity-Ceiling", "internal");
-    // With legacy headers disabled the consumer gets an anonymous/public context,
-    // so even an "internal" asset is denied.
-    expect(res.status).toBe(403);
-    expect(res.body.reason).toBeTruthy();
+describe("401 — missing token on catalog routes (enforcing mode)", () => {
+  it("GET /catalog/assets returns 401 for a missing token", async () => {
+    const res = await request(buildEnforcingApp()).get("/catalog/assets");
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Unauthorized");
   });
 });

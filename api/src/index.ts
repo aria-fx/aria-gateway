@@ -41,8 +41,6 @@ app.use(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
-      "X-Consumer-Id",
-      "X-Sensitivity-Ceiling",
     ],
   })
 );
@@ -63,7 +61,6 @@ app.get("/health", (_req, res) => {
 app.get("/metrics", (_req, res) => {
   res.json({
     auth_enforce_mode: process.env.AUTH_ENFORCE === "true" ? "enforce" : "observe",
-    legacy_headers_mode: process.env.LEGACY_HEADERS_MODE !== "disabled" ? "enabled" : "disabled",
     counters: getCounters(),
   });
 });
