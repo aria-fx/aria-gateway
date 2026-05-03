@@ -156,11 +156,56 @@ describe("Plugin Manifests", () => {
     expect(res.body.api.url).toContain("/openapi.json");
   });
 
+  it("GET /.well-known/ai-plugin.json auth type is service_http bearer (not none)", async () => {
+    const res = await request(app).get("/.well-known/ai-plugin.json");
+    expect(res.status).toBe(200);
+    expect(res.body.auth.type).toBe("service_http");
+    expect(res.body.auth.authorization_type).toBe("bearer");
+  });
+
   it("GET /openapi.json returns valid OpenAPI spec", async () => {
     const res = await request(app).get("/openapi.json");
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.1.0");
     expect(res.body.paths["/catalog/assets"]).toBeDefined();
+  });
+
+  it("GET /openapi.json includes BearerAuth security scheme", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    expect(res.body.components.securitySchemes.BearerAuth).toBeDefined();
+    expect(res.body.components.securitySchemes.BearerAuth.type).toBe("http");
+    expect(res.body.components.securitySchemes.BearerAuth.scheme).toBe("bearer");
+    expect(res.body.components.securitySchemes.BearerAuth.bearerFormat).toBe("JWT");
+  });
+
+  it("GET /openapi.json includes ConsumerHeaders security scheme", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    expect(res.body.components.securitySchemes.ConsumerHeaders).toBeDefined();
+    expect(res.body.components.securitySchemes.ConsumerHeaders.type).toBe("apiKey");
+    expect(res.body.components.securitySchemes.ConsumerHeaders.in).toBe("header");
+  });
+
+  it("GET /openapi.json has global security requirement", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.security)).toBe(true);
+    expect(res.body.security.length).toBeGreaterThan(0);
+  });
+
+  it("GET /openapi.json operations include security and 401 response", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    const listOp = res.body.paths["/catalog/assets"].get;
+    expect(Array.isArray(listOp.security)).toBe(true);
+    expect(listOp.responses["401"]).toBeDefined();
+    const manifestOp = res.body.paths["/catalog/assets/{name}/{version}/manifest"].get;
+    expect(Array.isArray(manifestOp.security)).toBe(true);
+    expect(manifestOp.responses["401"]).toBeDefined();
+    const installOp = res.body.paths["/catalog/assets/{name}/{version}/install"].post;
+    expect(Array.isArray(installOp.security)).toBe(true);
+    expect(installOp.responses["401"]).toBeDefined();
   });
 });
 

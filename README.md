@@ -70,7 +70,10 @@ Add the ARIA catalog as an MCP server in Claude Desktop:
 {
   "mcpServers": {
     "aria-gateway": {
-      "url": "http://your-gateway-host/mcp"
+      "url": "http://your-gateway-host/mcp",
+      "headers": {
+        "Authorization": "Bearer <your_entra_jwt>"
+      }
     }
   }
 }
@@ -88,6 +91,7 @@ Available MCP tools:
 1. In the GPT editor, select **Create new action**
 2. Set the OpenAPI URL to: `https://your-gateway-host/openapi.json`
 3. Or point to the plugin manifest: `https://your-gateway-host/.well-known/ai-plugin.json`
+4. In the **Authentication** step, select **API Key → Bearer** and provide your Entra JWT.
 
 ChatGPT will be able to search the catalog and help users install skills.
 
@@ -153,11 +157,60 @@ All endpoints are under `/catalog/`. Requests tagged from AI platforms via nginx
 
 ### Authentication
 
-The gateway reads governance context from HTTP headers:
-- `X-Consumer-Id` — your team identity (e.g., `hr-team`)
-- `X-Sensitivity-Ceiling` — your clearance level (`public`, `internal`, `confidential`, `highly_confidential`)
+The gateway supports two authentication modes:
 
-When not provided, the gateway defaults to `all-employees` / `internal` access.
+#### Bearer Token (recommended)
+
+Supply an Entra (Azure AD) JWT bearer token in the `Authorization` header:
+
+```http
+Authorization: Bearer <entra_jwt>
+```
+
+**Obtaining a token** (client-credentials flow):
+
+```bash
+curl -X POST "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=${CLIENT_ID}" \
+  -d "client_secret=${CLIENT_SECRET}" \
+  -d "scope=api://${ENTRA_AUDIENCE}/.default"
+```
+
+The token's `roles` claim controls the sensitivity ceiling:
+
+| Role | Sensitivity ceiling |
+|------|---------------------|
+| `aria-gateway-admin` | `highly_confidential` |
+| `aria-gateway-confidential` | `confidential` |
+| `aria-gateway-internal` | `internal` (default for authenticated users) |
+
+**Example — list assets with a bearer token:**
+
+```bash
+curl https://your-gateway-host/catalog/assets \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+Set `AUTH_ENFORCE=true` on the gateway to require a valid token on every request.
+
+#### Legacy Consumer Headers (deprecated)
+
+When no JWT is present and `LEGACY_HEADERS_MODE=enabled` (default), the gateway
+accepts identity from headers instead:
+
+- `X-Consumer-Id` — your team identity (e.g., `hr-team`)
+- `X-Sensitivity-Ceiling` — your clearance level (`public` | `internal` | `confidential` | `highly_confidential`)
+
+```bash
+curl https://your-gateway-host/catalog/assets \
+  -H "X-Consumer-Id: hr-team" \
+  -H "X-Sensitivity-Ceiling: internal"
+```
+
+When neither header is provided the gateway defaults to `all-employees` / `internal` access.
+
+> **Deprecation notice:** Header-based auth will be removed on **2027-01-01**. Migrate to JWT bearer tokens.
 
 > **Policy Contract:** The identity, access, and decision types used internally are defined in the versioned Auth-Core Policy Contract (`v1.0.0`).  See [`api/docs/policy-contract.md`](api/docs/policy-contract.md) for the full contract specification, versioning strategy, and IDP extension points.
 
@@ -272,6 +325,10 @@ Images are built for `linux/amd64` and `linux/arm64`.
 | `CORS_ORIGIN` | `*` | CORS allowed origins |
 | `NODE_ENV` | `development` | Environment mode |
 | `OCI_REGISTRY` | `ghcr.io/aria-fx/aria-assets` | OCI registry for `.mcpb` packages |
+| `AUTH_ENFORCE` | `false` | Set to `true` to reject requests with missing/invalid tokens |
+| `ENTRA_TENANT_ID` | — | Azure AD tenant ID (builds issuer + JWKS URLs automatically) |
+| `ENTRA_AUDIENCE` | — | Expected `aud` claim (app/client ID or URI) |
+| `LEGACY_HEADERS_MODE` | `enabled` | Set to `disabled` to reject header-only requests |
 
 ### UI (`ui/`)
 

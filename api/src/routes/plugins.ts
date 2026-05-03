@@ -15,7 +15,11 @@ router.get("/.well-known/ai-plugin.json", (_req, res) => {
       "Browse and install AI skills and agents from your organization's governed catalog. Search by capability or department.",
     description_for_model:
       "Use this plugin to search the organization's ARIA catalog of governed AI skills and agents. You can list available skills, search by capability or domain, get details about specific skills including their tools and governance status, and get installation instructions for Claude Desktop or VS Code.",
-    auth: { type: "none" },
+    auth: {
+      type: "service_http",
+      authorization_type: "bearer",
+      verification_tokens: {},
+    },
     api: {
       type: "openapi",
       url: `${API_BASE_URL}/openapi.json`,
@@ -53,6 +57,7 @@ function buildOpenApiSpec() {
     servers: [
       { url: API_BASE_URL, description: "ARIA Distribution Gateway" },
     ],
+    security: [{ BearerAuth: [] }],
     paths: {
       "/catalog/assets": {
         get: {
@@ -60,6 +65,7 @@ function buildOpenApiSpec() {
           summary: "List or search available AI skills and agents",
           description:
             "Returns all AI skills and agents in the catalog that the user is authorized to see. Use the query parameters to filter by skill type, business domain, or keyword.",
+          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
           parameters: [
             {
               name: "skill",
@@ -98,6 +104,7 @@ function buildOpenApiSpec() {
                 },
               },
             },
+            "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
           },
         },
       },
@@ -105,6 +112,7 @@ function buildOpenApiSpec() {
         get: {
           operationId: "getAssetManifest",
           summary: "Get full OASF record and governance details for an asset",
+          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
           parameters: [
             {
               name: "name",
@@ -126,6 +134,7 @@ function buildOpenApiSpec() {
               description: "Full asset manifest",
               content: { "application/json": { schema: { $ref: "#/components/schemas/AssetManifest" } } },
             },
+            "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
             "403": { description: "Access denied by governance policy" },
             "404": { description: "Asset not found" },
           },
@@ -136,6 +145,7 @@ function buildOpenApiSpec() {
           operationId: "installAsset",
           summary: "Get installation instructions for an asset",
           description: "Returns platform-specific configuration snippets for installing the asset into Claude Desktop, VS Code, or Agent Framework.",
+          security: [{ BearerAuth: [] }, { ConsumerHeaders: [] }],
           parameters: [
             {
               name: "name",
@@ -168,6 +178,7 @@ function buildOpenApiSpec() {
           },
           responses: {
             "200": { description: "Installation instructions and config snippet" },
+            "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
             "403": { description: "Install blocked by governance policy" },
             "404": { description: "Asset not found" },
           },
@@ -175,6 +186,27 @@ function buildOpenApiSpec() {
       },
     },
     components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description:
+            "Entra (Azure AD) JWT bearer token. Obtain via OAuth 2.0 client-credentials or authorization-code flow against your tenant. " +
+            "Roles `aria-gateway-admin`, `aria-gateway-confidential`, and `aria-gateway-internal` control the sensitivity ceiling. " +
+            "Set AUTH_ENFORCE=true on the gateway to require this header.",
+        },
+        ConsumerHeaders: {
+          type: "apiKey",
+          in: "header",
+          name: "X-Consumer-Id",
+          description:
+            "Legacy header-based identity. Supply `X-Consumer-Id` (e.g. `hr-team`) and optionally " +
+            "`X-Sensitivity-Ceiling` (`public` | `internal` | `confidential` | `highly_confidential`). " +
+            "Accepted when no JWT is present and LEGACY_HEADERS_MODE is `enabled` (default). " +
+            "Deprecated — will be removed 2027-01-01.",
+        },
+      },
       schemas: {
         AssetListItem: {
           type: "object",
