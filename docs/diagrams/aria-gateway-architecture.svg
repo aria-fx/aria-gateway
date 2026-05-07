@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700" role="img" aria-labelledby="title desc">
+  <title id="title">ARIA Distribution Gateway Architecture</title>
+  <desc id="desc">Branded architecture diagram showing nginx routing traffic to the Catalog API and Web Catalog UI.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2f8fc" />
+      <stop offset="100%" stop-color="#e9f4f8" />
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0a6c86" />
+    </marker>
+    <style>
+      .title { font: 700 36px 'Segoe UI', sans-serif; fill: #04293a; }
+      .subtitle { font: 500 18px 'Segoe UI', sans-serif; fill: #22566b; }
+      .panel { fill: #ffffff; stroke: #2b8cab; stroke-width: 3; rx: 20; }
+      .panel-title { font: 700 26px 'Segoe UI', sans-serif; fill: #083246; }
+      .panel-sub { font: 600 18px 'Segoe UI', sans-serif; fill: #0a6c86; }
+      .text { font: 500 17px 'Segoe UI', sans-serif; fill: #1f4454; }
+      .chip { fill: #e7f7fc; stroke: #65b8d1; stroke-width: 1.5; rx: 8; }
+      .chip-text { font: 600 14px 'Segoe UI', sans-serif; fill: #0b5f77; }
+      .brand { font: 700 18px 'Segoe UI', sans-serif; fill: #0a6c86; letter-spacing: 3px; }
+      .flow { stroke: #0a6c86; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="700" fill="url(#bg)" />
+  <rect x="24" y="24" width="1232" height="652" rx="26" fill="none" stroke="#7bc4d8" stroke-width="3" />
+
+  <text x="60" y="78" class="brand">ARIA</text>
+  <text x="60" y="122" class="title">Distribution Gateway</text>
+  <text x="60" y="154" class="subtitle">Ingress, governance-aware API services, and catalog user experience</text>
+
+  <rect x="60" y="220" width="360" height="390" class="panel" />
+  <text x="100" y="272" class="panel-title">nginx</text>
+  <text x="100" y="300" class="panel-sub">:8080 Ingress + Rewrite</text>
+
+  <rect x="98" y="328" width="105" height="28" class="chip" /><text x="112" y="348" class="chip-text">/catalog</text>
+  <rect x="216" y="328" width="72" height="28" class="chip" /><text x="234" y="348" class="chip-text">/mcp</text>
+  <rect x="98" y="368" width="72" height="28" class="chip" /><text x="120" y="388" class="chip-text">/v1</text>
+  <rect x="182" y="368" width="106" height="28" class="chip" /><text x="197" y="388" class="chip-text">/chatgpt</text>
+  <rect x="98" y="408" width="96" height="28" class="chip" /><text x="118" y="428" class="chip-text">/claude</text>
+  <rect x="206" y="408" width="140" height="28" class="chip" /><text x="224" y="428" class="chip-text">/.well-known/*</text>
+  <text x="100" y="476" class="text">Routes API paths to Catalog API</text>
+  <text x="100" y="504" class="text">Routes remaining traffic to Web UI</text>
+
+  <rect x="840" y="210" width="380" height="240" class="panel" />
+  <text x="872" y="262" class="panel-title">Catalog API</text>
+  <text x="872" y="290" class="panel-sub">Express + TypeScript on :3001</text>
+  <text x="872" y="332" class="text">- OASF record store</text>
+  <text x="872" y="364" class="text">- Governance policy checks</text>
+  <text x="872" y="396" class="text">- .mcpb packager + MCP JSON-RPC</text>
+  <text x="872" y="428" class="text">- ChatGPT manifest and OpenAPI</text>
+
+  <rect x="840" y="470" width="380" height="180" class="panel" />
+  <text x="872" y="520" class="panel-title">Web Catalog UI</text>
+  <text x="872" y="548" class="panel-sub">React on :80</text>
+  <text x="872" y="584" class="text">- Browse, search, and filter assets</text>
+  <text x="872" y="616" class="text">- Install guidance and access requests</text>
+
+  <path d="M 420 330 L 840 330" class="flow" />
+  <text x="540" y="322" class="chip-text">API routes</text>
+  <path d="M 420 520 C 560 520, 700 520, 840 520" class="flow" />
+  <text x="548" y="504" class="chip-text">UI fallback routes</text>
+</svg>

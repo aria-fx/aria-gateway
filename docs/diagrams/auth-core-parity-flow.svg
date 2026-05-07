@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Auth-Core Parity Flow</title>
+  <desc id="desc">Diagram showing policy input evaluated by TypeScript gateway and .NET auth-core producing identical policy decisions.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5fbfe" />
+      <stop offset="100%" stop-color="#eaf6fb" />
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0a6c86" />
+    </marker>
+    <style>
+      .brand { font: 700 18px 'Segoe UI', sans-serif; fill: #0a6c86; letter-spacing: 3px; }
+      .title { font: 700 32px 'Segoe UI', sans-serif; fill: #053246; }
+      .subtitle { font: 500 18px 'Segoe UI', sans-serif; fill: #2a6075; }
+      .box { fill: #ffffff; stroke: #58aec8; stroke-width: 2.5; rx: 16; }
+      .box-title { font: 700 24px 'Segoe UI', sans-serif; fill: #083246; }
+      .box-text { font: 500 17px 'Segoe UI', sans-serif; fill: #1d4c5f; }
+      .decision { fill: #083246; rx: 16; }
+      .decision-title { font: 700 24px 'Segoe UI', sans-serif; fill: #ffffff; }
+      .decision-text { font: 500 16px 'Segoe UI', sans-serif; fill: #d8f2fb; }
+      .flow { stroke: #0a6c86; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="520" fill="url(#bg)" />
+
+  <text x="52" y="58" class="brand">ARIA</text>
+  <text x="52" y="96" class="title">Auth-Core Parity Strategy</text>
+  <text x="52" y="124" class="subtitle">Both implementations must evaluate identical policy inputs into the same decision</text>
+
+  <rect x="70" y="194" width="270" height="170" class="box" />
+  <text x="98" y="236" class="box-title">Policy Input</text>
+  <text x="98" y="268" class="box-text">Asset metadata +</text>
+  <text x="98" y="296" class="box-text">consumer access context</text>
+
+  <rect x="430" y="154" width="300" height="140" class="box" />
+  <text x="456" y="196" class="box-title">TypeScript Gateway</text>
+  <text x="456" y="226" class="box-text">governance.service.ts</text>
+
+  <rect x="430" y="324" width="300" height="140" class="box" />
+  <text x="456" y="366" class="box-title">.NET auth-core</text>
+  <text x="456" y="396" class="box-text">PolicyEngine.Evaluate()</text>
+
+  <rect x="820" y="224" width="320" height="170" class="decision" />
+  <text x="848" y="268" class="decision-title">PolicyDecision</text>
+  <text x="848" y="300" class="decision-text">Contract version aligned</text>
+  <text x="848" y="328" class="decision-text">Deterministic output parity</text>
+
+  <path d="M 340 240 L 430 220" class="flow" />
+  <path d="M 340 320 L 430 392" class="flow" />
+  <path d="M 730 224 L 820 272" class="flow" />
+  <path d="M 730 394 L 820 344" class="flow" />
+</svg>

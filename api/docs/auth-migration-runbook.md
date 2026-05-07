@@ -36,13 +36,7 @@ Each object carries a `contract_version` field (`"1.0.0"`) so that consumers can
 
 The [`conformance-cases.json`](../tests/fixtures/conformance-cases.json) fixture suite (see [`conformance-fixtures.md`](./conformance-fixtures.md)) defines 15 self-contained test cases (CF-001 – CF-015) that any conformant policy engine must pass. The TypeScript test runner is `api/tests/conformance.test.ts`.
 
-```
-Policy input (asset + consumer)
-        │
-        ├─── TypeScript gateway (governance.service.ts)  ──┐
-        │                                                   ├──▶ Must produce identical PolicyDecision
-        └─── .NET auth-core (PolicyEngine.Evaluate())   ──┘
-```
+![Auth-Core parity flow diagram](../../docs/diagrams/auth-core-parity-flow.svg)
 
 When you add a new policy dimension or modify governance logic, add a corresponding fixture case and run the suite against both implementations before merging.
 

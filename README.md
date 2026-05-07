@@ -117,23 +117,7 @@ The "Add to VS Code" button on the catalog UI generates this snippet automatical
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ARIA Distribution Gateway                      │
-│                                                                   │
-│  ┌─────────┐    ┌──────────────────────┐    ┌───────────────┐   │
-│  │  nginx  │    │    Catalog API        │    │  Web Catalog  │   │
-│  │ :8080   │───▶│    (Express/TS)       │    │  UI (React)   │   │
-│  │         │    │    :3001              │    │  :80          │   │
-│  │ /catalog│    │                       │    │               │   │
-│  │ /mcp    │    │ • OASF record store   │    │ • Browse      │   │
-│  │ /v1/    │    │ • Governance checks   │    │ • Search      │   │
-│  │ /chatgpt│    │ • .mcpb packager      │    │ • Install     │   │
-│  │ /claude │    │ • MCP JSON-RPC        │    │ • Request     │   │
-│  │ /.w-k/  │    │ • ChatGPT manifest    │    │   Access      │   │
-│  └─────────┘    └──────────────────────┘    └───────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+![ARIA Distribution Gateway architecture diagram](docs/diagrams/aria-gateway-architecture.svg)
 
 ### URL Rewrite Rules (nginx)
 
@@ -238,40 +222,7 @@ If blocked, the API returns `403` with a plain-language reason and an `action_ur
 
 ## Project Structure
 
-```
-aria-gateway/
-├── api/                    # Catalog API (Express + TypeScript)
-│   ├── src/
-│   │   ├── models/         # OASF type definitions + policy contract types
-│   │   │   ├── oasf.ts     # OASF record, governance, asset types
-│   │   │   └── policy-contract.ts  # Auth-core policy contract v1.0.0
-│   │   ├── data/           # Sample asset catalog
-│   │   ├── services/       # Catalog, governance, .mcpb services
-│   │   └── routes/         # catalog, plugins (ChatGPT), mcp (Claude)
-│   ├── docs/               # Contract documentation and JSON Schema
-│   │   ├── auth-migration-runbook.md   # Gateway auth migration and operations runbook
-│   │   ├── policy-contract.md          # Contract spec, versioning, IDP guide
-│   │   ├── policy-contract.schema.json # JSON Schema for contract objects
-│   │   ├── conformance-fixtures.md     # Cross-language conformance fixture guide
-│   │   └── rollout-observability.md    # Structured log events and rollout procedure
-│   ├── tests/              # Vitest + Supertest API tests
-│   └── Dockerfile
-├── ui/                     # Web Catalog UI (React + TypeScript + Tailwind)
-│   ├── src/
-│   │   ├── api/            # Catalog API client
-│   │   ├── components/     # AssetCard, SearchBar, TrustBadge, InstallPanel
-│   │   ├── pages/          # CatalogPage, AssetDetailPage
-│   │   └── tests/          # Vitest + Testing Library UI tests
-│   └── Dockerfile
-├── nginx/
-│   └── nginx.conf          # URL rewrite rules + reverse proxy
-├── docker-compose.yml
-├── CHANGELOG.md
-└── .github/workflows/
-    ├── ci.yml              # Lint + build + test on every PR
-    ├── docker-publish.yml  # Build and push Docker images on merge
-    └── release.yml         # Create GitHub release on tag
-```
+![ARIA gateway repository structure diagram](docs/diagrams/aria-gateway-project-structure.svg)
 
 ---
 

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">ARIA Gateway Project Structure</title>
+  <desc id="desc">Branded high-level project structure diagram for the aria-gateway repository.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6fbfe" />
+      <stop offset="100%" stop-color="#edf7fb" />
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a9bb7" />
+    </marker>
+    <style>
+      .brand { font: 700 18px 'Segoe UI', sans-serif; fill: #0a6c86; letter-spacing: 3px; }
+      .title { font: 700 34px 'Segoe UI', sans-serif; fill: #062f41; }
+      .subtitle { font: 500 18px 'Segoe UI', sans-serif; fill: #2c5c70; }
+      .root { fill: #083246; rx: 12; }
+      .root-text { font: 700 20px 'Segoe UI', sans-serif; fill: #ffffff; }
+      .card { fill: #ffffff; stroke: #5fb3cc; stroke-width: 2.5; rx: 16; }
+      .card-title { font: 700 22px 'Segoe UI', sans-serif; fill: #083246; }
+      .item { font: 500 15px 'Segoe UI', sans-serif; fill: #1d4758; }
+      .connector { stroke: #3a9bb7; stroke-width: 3; fill: none; }
+      .branch { stroke: #3a9bb7; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1280" height="760" fill="url(#bg)" />
+  <text x="60" y="66" class="brand">ARIA</text>
+  <text x="60" y="106" class="title">Gateway Repository Structure</text>
+  <text x="60" y="136" class="subtitle">High-level map of source, runtime, and release artifacts</text>
+
+  <rect x="520" y="162" width="240" height="52" class="root" />
+  <text x="570" y="196" class="root-text">aria-gateway</text>
+
+  <path d="M 640 214 L 640 255" class="connector" />
+  <path d="M 188 255 L 1088 255" class="connector" />
+
+  <path d="M 188 255 L 188 300" class="branch" />
+  <path d="M 488 255 L 488 300" class="branch" />
+  <path d="M 788 255 L 788 300" class="branch" />
+  <path d="M 1088 255 L 1088 300" class="branch" />
+
+  <rect x="50" y="300" width="276" height="380" class="card" />
+  <text x="74" y="340" class="card-title">api/</text>
+  <text x="74" y="372" class="item">TypeScript Catalog API service</text>
+  <text x="74" y="402" class="item">- src/models: OASF + policy contract</text>
+  <text x="74" y="430" class="item">- src/services: governance + mcpb</text>
+  <text x="74" y="458" class="item">- src/routes: catalog, plugins, MCP</text>
+  <text x="74" y="486" class="item">- docs: contract and rollout guides</text>
+  <text x="74" y="514" class="item">- tests: vitest and conformance</text>
+  <text x="74" y="542" class="item">- Dockerfile for API image</text>
+
+  <rect x="350" y="300" width="276" height="380" class="card" />
+  <text x="374" y="340" class="card-title">ui/</text>
+  <text x="374" y="372" class="item">React catalog frontend</text>
+  <text x="374" y="402" class="item">- src/pages: catalog + asset detail</text>
+  <text x="374" y="430" class="item">- src/components: reusable panels</text>
+  <text x="374" y="458" class="item">- src/api: typed client bindings</text>
+  <text x="374" y="486" class="item">- tests: vitest + testing library</text>
+  <text x="374" y="514" class="item">- Dockerfile for static UI image</text>
+
+  <rect x="650" y="300" width="276" height="380" class="card" />
+  <text x="674" y="340" class="card-title">nginx/ + compose</text>
+  <text x="674" y="372" class="item">Routing and deployment surface</text>
+  <text x="674" y="402" class="item">- nginx.conf: reverse proxy rules</text>
+  <text x="674" y="430" class="item">- docker-compose.yml: local stack</text>
+  <text x="674" y="458" class="item">- README.md + CHANGELOG.md</text>
+
+  <rect x="950" y="300" width="276" height="380" class="card" />
+  <text x="974" y="340" class="card-title">.github/workflows/</text>
+  <text x="974" y="372" class="item">Release automation and CI</text>
+  <text x="974" y="402" class="item">- ci.yml</text>
+  <text x="974" y="430" class="item">- docker-publish.yml</text>
+  <text x="974" y="458" class="item">- release.yml</text>
+</svg>
