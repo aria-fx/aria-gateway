@@ -112,6 +112,19 @@ describe("Catalog API", () => {
     expect(new Date(res.body.estimatedReadyAt).getTime()).toBeGreaterThan(Date.now());
   });
 
+  it("POST /catalog/assets/:name/:version/install returns governance reason code/message when blocked", async () => {
+    const name = encodeURIComponent("aria.dev/skills/financial-analyzer");
+    const res = await request(app)
+      .post(`/catalog/assets/${name}/1.0.0/install`)
+      .send({ target: "claude_desktop" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("Install blocked by governance policy");
+    expect(res.body.reason).toBeDefined();
+    expect(res.body.reason.code).toBeDefined();
+    expect(res.body.reason.message).toBeDefined();
+  });
+
   it("POST /catalog/assets/:name/:version/request-access returns 202 with requestId per spec", async () => {
     const name = encodeURIComponent("aria.dev/skills/financial-analyzer");
     const res = await request(app)
@@ -122,6 +135,16 @@ describe("Catalog API", () => {
     expect(res.body.requestId).toBeDefined();
     expect(res.body.status).toBe("submitted");
     expect(Array.isArray(res.body.approvalChain)).toBe(true);
+  });
+
+  it("POST /catalog/assets/:name/:version/request-access returns 400 when access is already allowed", async () => {
+    const name = encodeURIComponent("aria.dev/skills/code-review");
+    const res = await request(app)
+      .post(`/catalog/assets/${name}/1.5.2/request-access`)
+      .send({ justification: "Requesting anyway for test coverage" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("already have access");
   });
 
   it("GET /catalog/stats returns summary stats", async () => {

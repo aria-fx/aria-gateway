@@ -16,6 +16,37 @@ import { sampleAssets } from "../data/sample-assets.js";
 
 const router = Router();
 
+function toGovernanceBlockReason(reason?: string): { code: string; message: string } {
+  if (!reason) {
+    return {
+      code: "governance_blocked",
+      message: "Access denied by governance policy.",
+    };
+  }
+
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("classified") || normalized.includes("access level")) {
+    return { code: "sensitivity_ceiling", message: reason };
+  }
+  if (normalized.includes("does not have access") || normalized.includes("restricted")) {
+    return { code: "consumer_not_allowed", message: reason };
+  }
+  if (normalized.includes("entra groups")) {
+    return { code: "entra_group_required", message: reason };
+  }
+  if (normalized.includes("entra roles")) {
+    return { code: "entra_role_required", message: reason };
+  }
+  if (normalized.includes("purview roles")) {
+    return { code: "purview_role_required", message: reason };
+  }
+  if (normalized.includes("dependency") && normalized.includes("sensitivity")) {
+    return { code: "dependency_ceiling", message: reason };
+  }
+
+  return { code: "governance_blocked", message: reason };
+}
+
 const listQuerySchema = z.object({
   skill: z.string().optional(),
   domain: z.string().optional(),
@@ -168,7 +199,7 @@ router.post("/assets/:name/:version/install", (req, res) => {
   if (!check.allowed) {
     res.status(403).json({
       error: "Install blocked by governance policy",
-      reason: check,
+      reason: toGovernanceBlockReason(check.reason),
     });
     return;
   }
@@ -205,6 +236,15 @@ router.post("/assets/:name/:version/request-access", (req, res) => {
   );
   if (!asset) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
+    return;
+  }
+
+  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
+  const check = checkGovernance(asset, consumer);
+  if (check.allowed) {
+    res.status(400).json({
+      error: "Access request not required. You already have access to this asset.",
+    });
     return;
   }
 
