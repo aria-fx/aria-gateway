@@ -40,7 +40,7 @@ router.get("/.well-known/openapi.yaml", (req, res) => {
   res.redirect("/openapi.json");
 });
 
-function buildOpenApiSpec() {
+export function buildOpenApiSpec() {
   return {
     openapi: "3.1.0",
     info: {

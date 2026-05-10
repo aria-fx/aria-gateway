@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "description": "Pinned runtime contract assertions for ARIA gateway OpenAPI generation.",
+  "requiredSecuritySchemes": ["BearerAuth"],
+  "requiredOperations": [
+    {
+      "path": "/catalog/assets",
+      "method": "get",
+      "requiredResponseStatuses": ["200", "401"]
+    },
+    {
+      "path": "/catalog/assets/{name}/{version}/manifest",
+      "method": "get",
+      "requiredResponseStatuses": ["200", "401", "403", "404"]
+    },
+    {
+      "path": "/catalog/assets/{name}/{version}/install",
+      "method": "post",
+      "requiredResponseStatuses": ["200", "401", "403", "404"]
+    }
+  ]
+}
