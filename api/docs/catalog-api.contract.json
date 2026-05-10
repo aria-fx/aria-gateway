@@ -6,7 +6,7 @@
     {
       "path": "/catalog/assets",
       "method": "get",
-      "requiredResponseStatuses": ["200", "401"]
+      "requiredResponseStatuses": ["200", "400", "401"]
     },
     {
       "path": "/catalog/assets/{name}/{version}/manifest",
@@ -16,7 +16,12 @@
     {
       "path": "/catalog/assets/{name}/{version}/install",
       "method": "post",
-      "requiredResponseStatuses": ["200", "401", "403", "404"]
+      "requiredResponseStatuses": ["202", "400", "401", "403", "404"]
+    },
+    {
+      "path": "/catalog/assets/{name}/{version}/request-access",
+      "method": "post",
+      "requiredResponseStatuses": ["202", "400", "401", "403", "404"]
     }
   ]
 }

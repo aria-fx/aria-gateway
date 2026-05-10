@@ -24,8 +24,8 @@ describe("Catalog API", () => {
     }
   });
 
-  it("GET /catalog/assets filters by keyword for public assets", async () => {
-    const res = await request(app).get("/catalog/assets?keyword=code");
+  it("GET /catalog/assets filters by query parameter 'q' for public assets", async () => {
+    const res = await request(app).get("/catalog/assets?q=code");
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.assets)).toBe(true);
@@ -98,27 +98,30 @@ describe("Catalog API", () => {
     expect(res.body.mcp_server).toBeDefined();
   });
 
-  it("POST /catalog/assets/:name/:version/install returns config snippet for a public asset", async () => {
+  it("POST /catalog/assets/:name/:version/install returns 202 Accepted per spec", async () => {
     const name = encodeURIComponent("aria.dev/skills/code-review");
     const res = await request(app)
       .post(`/catalog/assets/${name}/1.5.2/install`)
-      .send({ target: "claude-desktop" });
+      .send({ target: "claude_desktop" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.config_snippet).toBeDefined();
-    expect(res.body.config_snippet.mcpServers).toBeDefined();
+    expect(res.status).toBe(202);
+    expect(res.body.installId).toBeDefined();
+    expect(res.body.status).toBe("accepted");
+    expect(res.body.estimatedReadyAt).toBeDefined();
+    // Verify it's a valid ISO date string
+    expect(new Date(res.body.estimatedReadyAt).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("POST /catalog/assets/:name/:version/request-access returns request id", async () => {
+  it("POST /catalog/assets/:name/:version/request-access returns 202 with requestId per spec", async () => {
     const name = encodeURIComponent("aria.dev/skills/financial-analyzer");
     const res = await request(app)
       .post(`/catalog/assets/${name}/1.0.0/request-access`)
-      .send({});
+      .send({ justification: "Need this for quarterly reporting" });
 
     expect(res.status).toBe(202);
-    expect(res.body.request_id).toBeDefined();
-    expect(res.body.status).toBe("pending");
+    expect(res.body.requestId).toBeDefined();
+    expect(res.body.status).toBe("submitted");
+    expect(Array.isArray(res.body.approvalChain)).toBe(true);
   });
 
   it("GET /catalog/stats returns summary stats", async () => {
