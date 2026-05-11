@@ -153,7 +153,9 @@ router.post("/", (req: Request, res: Response) => {
       const toolName = (body.params?.name ?? body.params?.tool) as string;
       const toolArgs = (body.params?.arguments ?? body.params?.input ?? {}) as Record<string, unknown>;
       void handleToolCall(body.id, toolName, toolArgs, consumer, res).catch((error) => {
-        const message = error instanceof Error ? error.message : "Catalog provider failure";
+        const message = error instanceof Error
+          ? error.message
+          : `Catalog provider failure during ${toolName}`;
         res.json(rpcError(body.id, -32000, message));
       });
       break;

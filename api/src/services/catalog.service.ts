@@ -10,6 +10,7 @@ import { sampleAssets } from "../data/sample-assets.js";
 const ASSET_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3001";
 const OCI_INDEX_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json";
 const OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json";
+const DEFAULT_CACHE_TTL_SECONDS = 300;
 
 export type CatalogProviderMode = "registry" | "sample";
 
@@ -76,6 +77,24 @@ function parseAssetAnnotation(annotations?: Record<string, string>): CatalogAsse
   return null;
 }
 
+function extractAssetsFromBlob(blob: unknown): CatalogAsset[] {
+  if (isCatalogAsset(blob)) {
+    return [blob];
+  }
+  if (Array.isArray(blob)) {
+    return blob.filter(isCatalogAsset);
+  }
+  if (
+    blob &&
+    typeof blob === "object" &&
+    "assets" in blob &&
+    Array.isArray((blob as { assets: unknown[] }).assets)
+  ) {
+    return (blob as { assets: unknown[] }).assets.filter(isCatalogAsset);
+  }
+  return [];
+}
+
 function buildRegistryHeaders(accept: string): Record<string, string> {
   const headers: Record<string, string> = { Accept: accept };
   const token = process.env.CATALOG_REGISTRY_TOKEN;
@@ -115,8 +134,11 @@ class RegistryCatalogProvider implements CatalogProvider {
     if (!this.inflightLoad) {
       this.inflightLoad = this.loadAssetsFromRegistry()
         .then((assets) => {
-          const ttlSeconds = Number(process.env.CATALOG_CACHE_TTL_SECONDS ?? "300");
-          const cacheTtl = Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds : 300;
+          const ttlSeconds = Number(process.env.CATALOG_CACHE_TTL_SECONDS ?? DEFAULT_CACHE_TTL_SECONDS);
+          const cacheTtl =
+            Number.isFinite(ttlSeconds) && ttlSeconds > 0
+              ? ttlSeconds
+              : DEFAULT_CACHE_TTL_SECONDS;
           this.cache = assets;
           this.cacheExpiresAt = Date.now() + cacheTtl * 1000;
           return assets;
@@ -137,43 +159,26 @@ class RegistryCatalogProvider implements CatalogProvider {
     const indexUrl = `${registry}/v2/${repository}/manifests/${reference}`;
     const index = await fetchJson<RegistryIndex>(indexUrl, OCI_INDEX_MEDIA_TYPE);
     const manifests = index.manifests ?? [];
-    const assets: CatalogAsset[] = [];
-
-    for (const descriptor of manifests) {
-      const fromAnnotation = parseAssetAnnotation(descriptor.annotations);
-      if (fromAnnotation) {
-        assets.push(fromAnnotation);
-        continue;
-      }
-
-      if (!descriptor.digest) continue;
-      const manifestUrl = `${registry}/v2/${repository}/manifests/${descriptor.digest}`;
-      const manifest = await fetchJson<RegistryManifest>(manifestUrl, OCI_MANIFEST_MEDIA_TYPE);
-      const configDigest = manifest.config?.digest;
-      if (!configDigest) continue;
-
-      const configUrl = `${registry}/v2/${repository}/blobs/${configDigest}`;
-      const blob = await fetchJson<unknown>(configUrl, "application/json");
-
-      if (isCatalogAsset(blob)) {
-        assets.push(blob);
-      } else if (Array.isArray(blob)) {
-        for (const item of blob) {
-          if (isCatalogAsset(item)) assets.push(item);
+    const manifestAssets = await Promise.all(
+      manifests.map(async (descriptor) => {
+        const fromAnnotation = parseAssetAnnotation(descriptor.annotations);
+        if (fromAnnotation) {
+          return [fromAnnotation];
         }
-      } else if (
-        blob &&
-        typeof blob === "object" &&
-        "assets" in blob &&
-        Array.isArray((blob as { assets: unknown[] }).assets)
-      ) {
-        for (const item of (blob as { assets: unknown[] }).assets) {
-          if (isCatalogAsset(item)) assets.push(item);
-        }
-      }
-    }
 
-    return assets;
+        if (!descriptor.digest) return [];
+        const manifestUrl = `${registry}/v2/${repository}/manifests/${descriptor.digest}`;
+        const manifest = await fetchJson<RegistryManifest>(manifestUrl, OCI_MANIFEST_MEDIA_TYPE);
+        const configDigest = manifest.config?.digest;
+        if (!configDigest) return [];
+
+        const configUrl = `${registry}/v2/${repository}/blobs/${configDigest}`;
+        const blob = await fetchJson<unknown>(configUrl, "application/json");
+        return extractAssetsFromBlob(blob);
+      })
+    );
+
+    return manifestAssets.flat();
   }
 }
 
