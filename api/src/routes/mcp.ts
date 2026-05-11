@@ -155,7 +155,7 @@ router.post("/", (req: Request, res: Response) => {
       void handleToolCall(body.id, toolName, toolArgs, consumer, res).catch((error) => {
         const message = error instanceof Error
           ? error.message
-          : "An error occurred while processing the tool request";
+          : `An error occurred while processing tool "${toolName}" request`;
         res.json(rpcError(body.id, -32000, message));
       });
       break;

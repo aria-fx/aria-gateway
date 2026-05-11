@@ -157,7 +157,7 @@ class RegistryCatalogProvider implements CatalogProvider {
       /\/+$/,
       ""
     );
-    const repository = process.env.CATALOG_REGISTRY_REPOSITORY ?? "aria-fx/aria-assets/catalog";
+    const repository = process.env.CATALOG_REGISTRY_REPOSITORY ?? "aria-fx/aria-assets";
     const reference = process.env.CATALOG_REGISTRY_REFERENCE ?? "latest";
 
     const indexUrl = `${registry}/v2/${repository}/manifests/${reference}`;
