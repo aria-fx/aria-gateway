@@ -11,6 +11,7 @@ const ASSET_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3001";
 const OCI_INDEX_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json";
 const OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json";
 const DEFAULT_CACHE_TTL_SECONDS = 300;
+const DEFAULT_CATALOG_REGISTRY_URL = "https://ghcr.io";
 
 export type CatalogProviderMode = "registry" | "sample";
 
@@ -152,7 +153,10 @@ class RegistryCatalogProvider implements CatalogProvider {
   }
 
   private async loadAssetsFromRegistry(): Promise<CatalogAsset[]> {
-    const registry = (process.env.CATALOG_REGISTRY_URL ?? "https://ghcr.io").replace(/\/+$/, "");
+    const registry = (process.env.CATALOG_REGISTRY_URL ?? DEFAULT_CATALOG_REGISTRY_URL).replace(
+      /\/+$/,
+      ""
+    );
     const repository = process.env.CATALOG_REGISTRY_REPOSITORY ?? "aria-fx/aria-assets/catalog";
     const reference = process.env.CATALOG_REGISTRY_REFERENCE ?? "latest";
 

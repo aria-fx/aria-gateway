@@ -68,15 +68,16 @@ router.get("/assets", async (req, res) => {
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
   const catalogAssets = await getAllAssets();
+  const catalogAssetsByKey = new Map(
+    catalogAssets.map((asset) => [`${asset.record.name}@${asset.record.version}`, asset])
+  );
   // Map 'q' to internal 'keyword' parameter for listAssets service
   const listParams = { ...parsed.data, keyword: parsed.data.q };
   const all = await listAssets(listParams);
 
   // Filter by governance – only show assets the consumer is authorized to see
   const visible = all.filter((item) => {
-    const full = catalogAssets.find(
-      (a) => a.record.name === item.name && a.record.version === item.version
-    );
+    const full = catalogAssetsByKey.get(`${item.name}@${item.version}`);
     if (!full) return false;
     return checkGovernance(full, consumer, catalogAssets).allowed;
   });
