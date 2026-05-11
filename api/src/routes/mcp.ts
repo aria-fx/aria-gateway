@@ -155,7 +155,7 @@ router.post("/", (req: Request, res: Response) => {
       void handleToolCall(body.id, toolName, toolArgs, consumer, res).catch((error) => {
         const message = error instanceof Error
           ? error.message
-          : `Failed to execute tool "${toolName}": catalog provider unavailable`;
+          : "An error occurred while processing the tool request";
         res.json(rpcError(body.id, -32000, message));
       });
       break;
