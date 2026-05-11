@@ -6,13 +6,13 @@ import {
   getAssetVersions,
   getAssetManifest,
   getAllPublishedAssets,
+  getAllAssets,
 } from "../services/catalog.service.js";
 import {
   checkGovernance,
   parseConsumerContext,
 } from "../services/governance.service.js";
 import { generateMcpbManifest } from "../services/mcpb.service.js";
-import { sampleAssets } from "../data/sample-assets.js";
 
 const router = Router();
 
@@ -59,7 +59,7 @@ const listQuerySchema = z.object({
 });
 
 // GET /catalog/assets — browse / search catalog (spec: returns paginated results)
-router.get("/assets", (req, res) => {
+router.get("/assets", async (req, res) => {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
@@ -67,15 +67,18 @@ router.get("/assets", (req, res) => {
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
+  const catalogAssets = await getAllAssets();
   // Map 'q' to internal 'keyword' parameter for listAssets service
   const listParams = { ...parsed.data, keyword: parsed.data.q };
-  const all = listAssets(listParams);
+  const all = await listAssets(listParams);
 
   // Filter by governance – only show assets the consumer is authorized to see
   const visible = all.filter((item) => {
-    const full = sampleAssets.find((a) => a.record.name === item.name);
+    const full = catalogAssets.find(
+      (a) => a.record.name === item.name && a.record.version === item.version
+    );
     if (!full) return false;
-    return checkGovernance(full, consumer).allowed;
+    return checkGovernance(full, consumer, catalogAssets).allowed;
   });
 
   // Implement pagination per spec
@@ -93,10 +96,10 @@ router.get("/assets", (req, res) => {
 });
 
 // GET /catalog/assets/:name/versions
-router.get("/assets/:name/versions", (req, res) => {
+router.get("/assets/:name/versions", async (req, res) => {
   const { name } = req.params;
   const decoded = decodeURIComponent(name);
-  const versions = getAssetVersions(decoded);
+  const versions = await getAssetVersions(decoded);
 
   if (versions.length === 0) {
     res.status(404).json({ error: `Asset "${decoded}" not found` });
@@ -107,20 +110,19 @@ router.get("/assets/:name/versions", (req, res) => {
 });
 
 // GET /catalog/assets/:name/:version/manifest
-router.get("/assets/:name/:version/manifest", (req, res) => {
+router.get("/assets/:name/:version/manifest", async (req, res) => {
   const { version } = req.params;
   const name = decodeURIComponent(req.params.name);
 
-  const full = sampleAssets.find(
-    (a) => a.record.name === name && a.record.version === version
-  );
+  const catalogAssets = await getAllAssets();
+  const full = catalogAssets.find((a) => a.record.name === name && a.record.version === version);
   if (!full) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
     return;
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const check = checkGovernance(full, consumer);
+  const check = checkGovernance(full, consumer, catalogAssets);
   if (!check.allowed) {
     res.status(403).json({
       error: "Access denied by governance policy",
@@ -129,25 +131,28 @@ router.get("/assets/:name/:version/manifest", (req, res) => {
     return;
   }
 
-  const manifest = getAssetManifest(name, version)!;
+  const manifest = await getAssetManifest(name, version);
+  if (!manifest) {
+    res.status(404).json({ error: `Asset "${name}@${version}" not found` });
+    return;
+  }
   res.json(manifest);
 });
 
 // GET /catalog/assets/:name/:version/mcpb — download .mcpb bundle
-router.get("/assets/:name/:version/mcpb", (req, res) => {
+router.get("/assets/:name/:version/mcpb", async (req, res) => {
   const { version } = req.params;
   const name = decodeURIComponent(req.params.name);
 
-  const asset = sampleAssets.find(
-    (a) => a.record.name === name && a.record.version === version
-  );
+  const catalogAssets = await getAllAssets();
+  const asset = catalogAssets.find((a) => a.record.name === name && a.record.version === version);
   if (!asset) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
     return;
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const check = checkGovernance(asset, consumer);
+  const check = checkGovernance(asset, consumer, catalogAssets);
   if (!check.allowed) {
     res.status(403).json({
       error: "Access denied by governance policy",
@@ -171,7 +176,7 @@ router.get("/assets/:name/:version/mcpb", (req, res) => {
 });
 
 // POST /catalog/assets/:name/:version/install (spec: returns 202 Accepted per RFC 7231)
-router.post("/assets/:name/:version/install", (req, res) => {
+router.post("/assets/:name/:version/install", async (req, res) => {
   const { version } = req.params;
   const name = decodeURIComponent(req.params.name);
   const installRequest = req.body as { target?: string; clientRequestId?: string; parameters?: Record<string, string> };
@@ -186,16 +191,15 @@ router.post("/assets/:name/:version/install", (req, res) => {
     return;
   }
 
-  const asset = sampleAssets.find(
-    (a) => a.record.name === name && a.record.version === version
-  );
+  const catalogAssets = await getAllAssets();
+  const asset = catalogAssets.find((a) => a.record.name === name && a.record.version === version);
   if (!asset) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
     return;
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const check = checkGovernance(asset, consumer);
+  const check = checkGovernance(asset, consumer, catalogAssets);
   if (!check.allowed) {
     res.status(403).json({
       error: "Install blocked by governance policy",
@@ -218,7 +222,7 @@ router.post("/assets/:name/:version/install", (req, res) => {
 
 
 // POST /catalog/assets/:name/:version/request-access (spec: returns 202)
-router.post("/assets/:name/:version/request-access", (req, res) => {
+router.post("/assets/:name/:version/request-access", async (req, res) => {
   const { version } = req.params;
   const name = decodeURIComponent(req.params.name);
   const accessRequest = req.body as { justification?: string; ticketSystem?: string };
@@ -231,16 +235,15 @@ router.post("/assets/:name/:version/request-access", (req, res) => {
     return;
   }
 
-  const asset = sampleAssets.find(
-    (a) => a.record.name === name && a.record.version === version
-  );
+  const catalogAssets = await getAllAssets();
+  const asset = catalogAssets.find((a) => a.record.name === name && a.record.version === version);
   if (!asset) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
     return;
   }
 
   const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const check = checkGovernance(asset, consumer);
+  const check = checkGovernance(asset, consumer, catalogAssets);
   if (check.allowed) {
     res.status(400).json({
       error: "Access request not required. You already have access to this asset.",
@@ -260,8 +263,8 @@ router.post("/assets/:name/:version/request-access", (req, res) => {
 });
 
 // GET /catalog/stats — summary stats for dashboard
-router.get("/stats", (_req, res) => {
-  const published = getAllPublishedAssets();
+router.get("/stats", async (_req, res) => {
+  const published = await getAllPublishedAssets();
   const byTier: Record<string, number> = {};
   const byDomain: Record<string, number> = {};
 

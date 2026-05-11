@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import { getAllPublishedAssets } from "../services/catalog.service.js";
+import { getAllAssets } from "../services/catalog.service.js";
 import { parseConsumerContext, checkGovernance } from "../services/governance.service.js";
-import { sampleAssets } from "../data/sample-assets.js";
 
 const router = Router();
 
@@ -153,7 +152,10 @@ router.post("/", (req: Request, res: Response) => {
     case "tools/call": {
       const toolName = (body.params?.name ?? body.params?.tool) as string;
       const toolArgs = (body.params?.arguments ?? body.params?.input ?? {}) as Record<string, unknown>;
-      handleToolCall(body.id, toolName, toolArgs, consumer, res);
+      void handleToolCall(body.id, toolName, toolArgs, consumer, res).catch((error) => {
+        const message = error instanceof Error ? error.message : "Catalog provider failure";
+        res.json(rpcError(body.id, -32000, message));
+      });
       break;
     }
 
@@ -162,21 +164,26 @@ router.post("/", (req: Request, res: Response) => {
   }
 });
 
-function handleToolCall(
+async function handleToolCall(
   id: string | number,
   toolName: string,
   args: Record<string, unknown>,
   consumer: { consumer_id: string; sensitivity_ceiling: string },
   res: Response
-) {
+): Promise<void> {
   switch (toolName) {
     case "search_assets": {
-      const published = getAllPublishedAssets();
+      const allAssets = await getAllAssets();
+      const published = allAssets.filter((a) => a.record.lifecycle_state === "published");
       const keyword = (args.keyword as string | undefined)?.toLowerCase();
       const domain = (args.domain as string | undefined)?.toLowerCase();
 
       let results = published.filter((a) =>
-        checkGovernance(a, consumer as Parameters<typeof checkGovernance>[1]).allowed
+        checkGovernance(
+          a,
+          consumer as Parameters<typeof checkGovernance>[1],
+          allAssets
+        ).allowed
       );
 
       if (keyword) {
@@ -220,9 +227,8 @@ function handleToolCall(
     case "get_asset_detail": {
       const name = args.name as string;
       const version = args.version as string;
-      const asset = sampleAssets.find(
-        (a) => a.record.name === name && a.record.version === version
-      );
+      const allAssets = await getAllAssets();
+      const asset = allAssets.find((a) => a.record.name === name && a.record.version === version);
 
       if (!asset) {
         res.json(
@@ -233,7 +239,11 @@ function handleToolCall(
         break;
       }
 
-      const govCheck = checkGovernance(asset, consumer as Parameters<typeof checkGovernance>[1]);
+      const govCheck = checkGovernance(
+        asset,
+        consumer as Parameters<typeof checkGovernance>[1],
+        allAssets
+      );
       if (!govCheck.allowed) {
         res.json(
           rpcOk(id, {
@@ -274,9 +284,8 @@ function handleToolCall(
       const version = args.version as string;
       const target = (args.target as string) ?? "claude-desktop";
 
-      const asset = sampleAssets.find(
-        (a) => a.record.name === name && a.record.version === version
-      );
+      const allAssets = await getAllAssets();
+      const asset = allAssets.find((a) => a.record.name === name && a.record.version === version);
 
       if (!asset) {
         res.json(
@@ -287,7 +296,11 @@ function handleToolCall(
         break;
       }
 
-      const govCheck = checkGovernance(asset, consumer as Parameters<typeof checkGovernance>[1]);
+      const govCheck = checkGovernance(
+        asset,
+        consumer as Parameters<typeof checkGovernance>[1],
+        allAssets
+      );
       if (!govCheck.allowed) {
         res.json(
           rpcOk(id, {
