@@ -104,6 +104,7 @@ export function buildOpenApiSpec() {
                 },
               },
             },
+            "400": { description: "Invalid query parameters" },
             "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
           },
         },
@@ -177,9 +178,59 @@ export function buildOpenApiSpec() {
             },
           },
           responses: {
-            "200": { description: "Installation instructions and config snippet" },
+            "202": { description: "Install request accepted" },
+            "400": { description: "Invalid request parameters" },
             "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
             "403": { description: "Install blocked by governance policy" },
+            "404": { description: "Asset not found" },
+          },
+        },
+      },
+      "/catalog/assets/{name}/{version}/request-access": {
+        post: {
+          operationId: "requestAssetAccess",
+          summary: "Request access to a governed asset",
+          description: "Submits an access request for an asset that the caller is not currently authorised to install.",
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: "name",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+            {
+              name: "version",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["justification"],
+                  properties: {
+                    justification: {
+                      type: "string",
+                      description: "Business justification for access (min 8 characters)",
+                    },
+                    ticketSystem: {
+                      type: "string",
+                      description: "Ticket system to use for the access request",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "202": { description: "Access request submitted" },
+            "400": { description: "Invalid request (e.g. missing justification)" },
+            "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
+            "403": { description: "Access request not required — caller already has access" },
             "404": { description: "Asset not found" },
           },
         },
