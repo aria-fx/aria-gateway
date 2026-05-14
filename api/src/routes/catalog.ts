@@ -184,10 +184,10 @@ router.post("/assets/:name/:version/install", async (req, res) => {
   const target = installRequest.target ?? "claude_desktop";
 
   // Validate target enum
-  const validTargets = ["claude_desktop", "vscode", "cowork", "web_portal", "aria_cli"];
+  const validTargets = ["claude_desktop", "claude-desktop", "vscode", "cowork", "web_portal", "aria_cli"];
   if (!validTargets.includes(target)) {
     res.status(400).json({
-      error: "Invalid target. Must be one of: claude_desktop, vscode, cowork, web_portal, aria_cli",
+      error: "Invalid target. Must be one of: claude_desktop, claude-desktop, vscode, cowork, web_portal, aria_cli",
     });
     return;
   }
@@ -204,6 +204,7 @@ router.post("/assets/:name/:version/install", async (req, res) => {
   if (!check.allowed) {
     res.status(403).json({
       error: "Install blocked by governance policy",
+      ...check,
       reason: toGovernanceBlockReason(check.reason),
     });
     return;
