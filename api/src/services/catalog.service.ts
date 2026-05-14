@@ -8,6 +8,224 @@ import type {
 import { sampleAssets } from "../data/sample-assets.js";
 
 const ASSET_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3001";
+const OCI_INDEX_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json";
+const OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json";
+const DEFAULT_CACHE_TTL_SECONDS = 300;
+const DEFAULT_CATALOG_REGISTRY_URL = "https://ghcr.io";
+
+export type CatalogProviderMode = "registry" | "sample";
+
+interface CatalogProvider {
+  getAssets(): Promise<CatalogAsset[]>;
+}
+
+interface RegistryIndexManifest {
+  digest?: string;
+  annotations?: Record<string, string>;
+}
+
+interface RegistryIndex {
+  manifests?: RegistryIndexManifest[];
+}
+
+interface RegistryManifest {
+  config?: {
+    digest?: string;
+  };
+}
+
+const CATALOG_ASSET_ANNOTATION_KEYS = [
+  "io.aria.asset",
+  "io.aria.catalog.asset",
+  "org.opencontainers.image.description",
+];
+
+function isLocalDevelopment(): boolean {
+  return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+}
+
+function isSampleModeEnabled(): boolean {
+  return process.env.CATALOG_SAMPLE_MODE === "true";
+}
+
+export function resolveCatalogProviderMode(): CatalogProviderMode {
+  if (process.env.CATALOG_PROVIDER === "sample") {
+    return isLocalDevelopment() && isSampleModeEnabled() ? "sample" : "registry";
+  }
+  return "registry";
+}
+
+function isCatalogAsset(candidate: unknown): candidate is CatalogAsset {
+  if (!candidate || typeof candidate !== "object") return false;
+  const maybe = candidate as Partial<CatalogAsset>;
+  return Boolean(maybe.record?.name && maybe.record?.version && maybe.governance?.sensitivity_tier);
+}
+
+function parseAssetAnnotation(annotations?: Record<string, string>): CatalogAsset | null {
+  if (!annotations) return null;
+  for (const key of CATALOG_ASSET_ANNOTATION_KEYS) {
+    const raw = annotations[key];
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (isCatalogAsset(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // ignore malformed annotation and try other keys
+    }
+  }
+  return null;
+}
+
+function extractAssetsFromBlob(blob: unknown): CatalogAsset[] {
+  if (isCatalogAsset(blob)) {
+    return [blob];
+  }
+  if (Array.isArray(blob)) {
+    return blob.filter(isCatalogAsset);
+  }
+  if (
+    blob &&
+    typeof blob === "object" &&
+    "assets" in blob &&
+    Array.isArray((blob as { assets: unknown[] }).assets)
+  ) {
+    return (blob as { assets: unknown[] }).assets.filter(isCatalogAsset);
+  }
+  return [];
+}
+
+function buildRegistryHeaders(accept: string): Record<string, string> {
+  const headers: Record<string, string> = { Accept: accept };
+  const token = process.env.CATALOG_REGISTRY_TOKEN;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function fetchJson<T>(url: string, accept: string): Promise<T> {
+  const response = await fetch(url, { headers: buildRegistryHeaders(accept) });
+  if (!response.ok) {
+    throw new Error(`Catalog registry request failed (${response.status}): ${url}`);
+  }
+  return (await response.json()) as T;
+}
+
+class SampleCatalogProvider implements CatalogProvider {
+  async getAssets(): Promise<CatalogAsset[]> {
+    return sampleAssets;
+  }
+}
+
+class RegistryCatalogProvider implements CatalogProvider {
+  private cache: CatalogAsset[] | null = null;
+
+  private cacheExpiresAt = 0;
+
+  private inflightLoad?: Promise<CatalogAsset[]>;
+
+  async getAssets(): Promise<CatalogAsset[]> {
+    const now = Date.now();
+    if (this.cache && now < this.cacheExpiresAt) {
+      return this.cache;
+    }
+
+    if (!this.inflightLoad) {
+      this.inflightLoad = this.loadAssetsFromRegistry()
+        .then((assets) => {
+          const ttlSeconds = Number(process.env.CATALOG_CACHE_TTL_SECONDS ?? DEFAULT_CACHE_TTL_SECONDS);
+          const cacheTtl =
+            Number.isFinite(ttlSeconds) && ttlSeconds > 0
+              ? ttlSeconds
+              : DEFAULT_CACHE_TTL_SECONDS;
+          this.cache = assets;
+          this.cacheExpiresAt = Date.now() + cacheTtl * 1000;
+          return assets;
+        })
+        .finally(() => {
+          this.inflightLoad = undefined;
+        });
+    }
+
+    return this.inflightLoad;
+  }
+
+  private async loadAssetsFromRegistry(): Promise<CatalogAsset[]> {
+    const registry = (process.env.CATALOG_REGISTRY_URL ?? DEFAULT_CATALOG_REGISTRY_URL).replace(
+      /\/+$/,
+      ""
+    );
+    const repository = process.env.CATALOG_REGISTRY_REPOSITORY ?? "aria-fx/aria-assets";
+    const reference = process.env.CATALOG_REGISTRY_REFERENCE ?? "latest";
+
+    const indexUrl = `${registry}/v2/${repository}/manifests/${reference}`;
+    const index = await fetchJson<RegistryIndex>(indexUrl, OCI_INDEX_MEDIA_TYPE);
+    const manifests = index.manifests ?? [];
+    const manifestAssets = await Promise.all(
+      manifests.map(async (descriptor) => {
+        const fromAnnotation = parseAssetAnnotation(descriptor.annotations);
+        if (fromAnnotation) {
+          return [fromAnnotation];
+        }
+
+        if (!descriptor.digest) return [];
+        const manifestUrl = `${registry}/v2/${repository}/manifests/${descriptor.digest}`;
+        const manifest = await fetchJson<RegistryManifest>(manifestUrl, OCI_MANIFEST_MEDIA_TYPE);
+        const configDigest = manifest.config?.digest;
+        if (!configDigest) return [];
+
+        const configUrl = `${registry}/v2/${repository}/blobs/${configDigest}`;
+        const blob = await fetchJson<unknown>(configUrl, "application/json");
+        return extractAssetsFromBlob(blob);
+      })
+    );
+
+    return manifestAssets.flat();
+  }
+}
+
+class RegistryWithSampleFallbackProvider implements CatalogProvider {
+  constructor(
+    private readonly registryProvider: RegistryCatalogProvider,
+    private readonly sampleProvider: SampleCatalogProvider
+  ) {}
+
+  async getAssets(): Promise<CatalogAsset[]> {
+    try {
+      return await this.registryProvider.getAssets();
+    } catch (error) {
+      if (isLocalDevelopment() && isSampleModeEnabled()) {
+        return this.sampleProvider.getAssets();
+      }
+      throw error;
+    }
+  }
+}
+
+let providerInstance: CatalogProvider | null = null;
+
+function createCatalogProvider(): CatalogProvider {
+  if (resolveCatalogProviderMode() === "sample") {
+    return new SampleCatalogProvider();
+  }
+  return new RegistryWithSampleFallbackProvider(
+    new RegistryCatalogProvider(),
+    new SampleCatalogProvider()
+  );
+}
+
+async function getCatalogAssets(): Promise<CatalogAsset[]> {
+  if (!providerInstance) {
+    providerInstance = createCatalogProvider();
+  }
+  return providerInstance.getAssets();
+}
+
+export function resetCatalogProviderForTests(): void {
+  providerInstance = null;
+}
 
 function resolveTrustBadge(asset: CatalogAsset): TrustBadge {
   const tier = asset.governance.sensitivity_tier;
@@ -46,13 +264,16 @@ export interface CatalogFilters {
   sensitivity?: SensitivityTier;
 }
 
-export function listAssets(filters: CatalogFilters = {}): AssetListItem[] {
-  let assets = sampleAssets.filter(
+function listAssetsFromSource(
+  source: CatalogAsset[],
+  filters: CatalogFilters = {}
+): AssetListItem[] {
+  let assets = source.filter(
     (a) => a.record.lifecycle_state === "published"
   );
 
   if (filters.state) {
-    assets = sampleAssets.filter((a) => a.record.lifecycle_state === filters.state);
+    assets = source.filter((a) => a.record.lifecycle_state === filters.state);
   }
 
   if (filters.skill) {
@@ -88,18 +309,25 @@ export function listAssets(filters: CatalogFilters = {}): AssetListItem[] {
   return assets.map(toListItem);
 }
 
-export function getAssetVersions(name: string): string[] {
-  return sampleAssets
+export async function listAssets(filters: CatalogFilters = {}): Promise<AssetListItem[]> {
+  const assets = await getCatalogAssets();
+  return listAssetsFromSource(assets, filters);
+}
+
+export async function getAssetVersions(name: string): Promise<string[]> {
+  const assets = await getCatalogAssets();
+  return assets
     .filter((a) => a.record.name === name)
     .map((a) => a.record.version)
     .sort((a, b) => b.localeCompare(a));
 }
 
-export function getAssetManifest(
+export async function getAssetManifest(
   name: string,
   version: string
-): AssetManifest | null {
-  const asset = sampleAssets.find(
+): Promise<AssetManifest | null> {
+  const assets = await getCatalogAssets();
+  const asset = assets.find(
     (a) => a.record.name === name && a.record.version === version
   );
   if (!asset) return null;
@@ -117,6 +345,11 @@ export function getAssetManifest(
   };
 }
 
-export function getAllPublishedAssets(): CatalogAsset[] {
-  return sampleAssets.filter((a) => a.record.lifecycle_state === "published");
+export async function getAllAssets(): Promise<CatalogAsset[]> {
+  return getCatalogAssets();
+}
+
+export async function getAllPublishedAssets(): Promise<CatalogAsset[]> {
+  const assets = await getCatalogAssets();
+  return assets.filter((a) => a.record.lifecycle_state === "published");
 }

@@ -201,9 +201,9 @@ describe("200 — valid JWT token with allowed policy on catalog routes (enforci
       )
       .set("Authorization", `Bearer ${token}`)
       .send({ target: "claude-desktop" });
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.config_snippet).toBeDefined();
+    expect(res.status).toBe(202);
+    expect(res.body.installId).toBeDefined();
+    expect(res.body.status).toBe("accepted");
   });
 });
 

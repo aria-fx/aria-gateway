@@ -12,6 +12,8 @@ export default defineConfig({
     },
     env: {
       NODE_ENV: "test",
+      CATALOG_PROVIDER: "sample",
+      CATALOG_SAMPLE_MODE: "true",
     },
   },
 });

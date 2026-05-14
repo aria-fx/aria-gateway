@@ -28,7 +28,8 @@ export type ConsumerContext = EffectiveAccessContext;
 
 export function checkGovernance(
   asset: CatalogAsset,
-  consumer: ConsumerContext
+  consumer: ConsumerContext,
+  catalogAssets: CatalogAsset[] = sampleAssets
 ): PolicyDecision {
   const governance = asset.governance;
   const name = asset.record.name;
@@ -116,7 +117,7 @@ export function checkGovernance(
 
   // 6. Dependency sensitivity ceiling check
   if (governance.dependency_sensitivity_ceiling) {
-    const deps = resolveDependencies(asset);
+    const deps = resolveDependencies(asset, catalogAssets);
     for (const dep of deps) {
       if (
         tierLevel(dep.governance.sensitivity_tier) >
@@ -133,12 +134,12 @@ export function checkGovernance(
   return { contract_version: POLICY_CONTRACT_VERSION, allowed: true };
 }
 
-function resolveDependencies(asset: CatalogAsset): CatalogAsset[] {
+function resolveDependencies(asset: CatalogAsset, sourceAssets: CatalogAsset[]): CatalogAsset[] {
   const deps: CatalogAsset[] = [];
   for (const module of asset.record.modules) {
     if (module.ref && typeof module.ref === "string") {
       const [depName] = module.ref.split(":");
-      const dep = sampleAssets.find((a) => a.record.name === depName);
+      const dep = sourceAssets.find((a) => a.record.name === depName);
       if (dep) deps.push(dep);
     }
   }
