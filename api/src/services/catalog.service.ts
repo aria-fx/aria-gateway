@@ -89,8 +89,8 @@ function resolveFreshnessSlaP95Seconds(): number {
 function toP95(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.ceil(sorted.length * 0.95) - 1;
-  return sorted[Math.max(0, index)];
+  const index = Math.floor(sorted.length * 0.95);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, index))];
 }
 
 export function resolveCatalogProviderMode(): CatalogProviderMode {

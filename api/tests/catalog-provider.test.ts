@@ -127,6 +127,8 @@ describe("catalog provider selection", () => {
   });
 
   it("forces refresh and invalidates cached metadata before ttl expiry", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
     process.env.NODE_ENV = "production";
     process.env.CATALOG_PROVIDER = "registry";
     process.env.CATALOG_REGISTRY_URL = "https://registry.example.com";
@@ -157,22 +159,27 @@ describe("catalog provider selection", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const first = await getAllAssets();
-    const second = await getAllAssets();
-    activeAsset = secondAsset;
+    try {
+      const first = await getAllAssets();
+      vi.advanceTimersByTime(1000);
+      const second = await getAllAssets();
+      activeAsset = secondAsset;
 
-    await refreshCatalogAssets();
-    const afterRefresh = await getAllAssets();
-    const metrics = getCatalogCacheMetrics();
+      await refreshCatalogAssets();
+      const afterRefresh = await getAllAssets();
+      const metrics = getCatalogCacheMetrics();
 
-    expect(first).toEqual([firstAsset]);
-    expect(second).toEqual([firstAsset]);
-    expect(afterRefresh).toEqual([secondAsset]);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(metrics.staleness_window_seconds).toBe(300);
-    expect(metrics.refresh_success_total).toBeGreaterThanOrEqual(2);
-    expect(metrics.p95_freshness_seconds).not.toBeNull();
-    expect(metrics.p95_freshness_seconds!).toBeLessThanOrEqual(metrics.freshness_sla_p95_seconds);
+      expect(first).toEqual([firstAsset]);
+      expect(second).toEqual([firstAsset]);
+      expect(afterRefresh).toEqual([secondAsset]);
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+      expect(metrics.staleness_window_seconds).toBe(300);
+      expect(metrics.refresh_success_total).toBeGreaterThanOrEqual(2);
+      expect(metrics.p95_freshness_seconds).not.toBeNull();
+      expect(metrics.p95_freshness_seconds!).toBeLessThanOrEqual(metrics.freshness_sla_p95_seconds);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("tracks refresh failures in cache freshness metrics", async () => {
