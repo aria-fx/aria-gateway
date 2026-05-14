@@ -189,12 +189,12 @@ Set `AUTH_ENFORCE=true` on the gateway to require a valid token on every request
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/catalog/assets` | List all assets you're authorized to see |
-| `GET` | `/catalog/assets?keyword=hr&domain=human_resources` | Search/filter assets |
+| `GET` | `/catalog/assets?q=hr&domain=human_resources&page=1&pageSize=25` | Search/filter assets with pagination |
 | `GET` | `/catalog/assets/{name}/versions` | List versions of an asset |
 | `GET` | `/catalog/assets/{name}/{version}/manifest` | Full OASF record + governance overlay |
 | `GET` | `/catalog/assets/{name}/{version}/mcpb` | Download `.mcpb` bundle for Claude Desktop |
-| `POST` | `/catalog/assets/{name}/{version}/install` | Get install config for a target platform |
-| `POST` | `/catalog/assets/{name}/{version}/request-access` | Submit access request |
+| `POST` | `/catalog/assets/{name}/{version}/install` | Submit async install request (`202` with `installId`, `status`, `estimatedReadyAt`) |
+| `POST` | `/catalog/assets/{name}/{version}/request-access` | Submit access request (`202` when submitted, `400` when already authorized) |
 | `GET` | `/catalog/stats` | Catalog summary statistics |
 
 ### Governance
@@ -205,7 +205,7 @@ Every request is checked against the OASF governance overlay:
 2. **Consumer allow-list** — consumer identity in `allowed_consumers`
 3. **Dependency ceiling** — recursive dependency check
 
-If blocked, the API returns `403` with a plain-language reason and an `action_url` to request access.
+If blocked, governed endpoints return `403` with a structured reason payload and an `action_url` to request access.
 
 ---
 

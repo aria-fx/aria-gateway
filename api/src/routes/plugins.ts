@@ -64,7 +64,7 @@ export function buildOpenApiSpec() {
           operationId: "listAssets",
           summary: "List or search available AI skills and agents",
           description:
-            "Returns all AI skills and agents in the catalog that the user is authorized to see. Use the query parameters to filter by skill type, business domain, or keyword.",
+            "Returns catalog assets the caller is authorized to see. Supports free-text search and pagination.",
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -80,10 +80,28 @@ export function buildOpenApiSpec() {
               schema: { type: "string" },
             },
             {
-              name: "keyword",
+              name: "q",
               in: "query",
-              description: "Free-text keyword search across name, description, and tags",
+              description: "Free-text search across name, description, and tags",
               schema: { type: "string" },
+            },
+            {
+              name: "page",
+              in: "query",
+              description: "1-based page index",
+              schema: { type: "integer", minimum: 1, default: 1 },
+            },
+            {
+              name: "pageSize",
+              in: "query",
+              description: "Number of items per page",
+              schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+            },
+            {
+              name: "sensitivity",
+              in: "query",
+              description: "Filter by sensitivity tier",
+              schema: { type: "string", enum: ["public", "internal", "confidential", "highly_confidential"] },
             },
           ],
           responses: {
@@ -95,6 +113,8 @@ export function buildOpenApiSpec() {
                     type: "object",
                     properties: {
                       total: { type: "integer" },
+                      page: { type: "integer" },
+                      pageSize: { type: "integer" },
                       assets: {
                         type: "array",
                         items: { $ref: "#/components/schemas/AssetListItem" },
@@ -144,8 +164,8 @@ export function buildOpenApiSpec() {
       "/catalog/assets/{name}/{version}/install": {
         post: {
           operationId: "installAsset",
-          summary: "Get installation instructions for an asset",
-          description: "Returns platform-specific configuration snippets for installing the asset into Claude Desktop, VS Code, or Agent Framework.",
+          summary: "Submit an install request for an asset",
+          description: "Starts asynchronous install processing and returns a queued install identifier.",
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -166,19 +186,34 @@ export function buildOpenApiSpec() {
               "application/json": {
                 schema: {
                   type: "object",
-                  properties: {
-                    target: {
-                      type: "string",
-                      enum: ["claude-desktop", "vscode", "agent-framework"],
-                      default: "claude-desktop",
+                    properties: {
+                      target: {
+                        type: "string",
+                        enum: ["claude_desktop", "claude-desktop", "vscode", "cowork", "web_portal", "aria_cli"],
+                        default: "claude_desktop",
+                      },
                     },
-                  },
                 },
               },
             },
           },
           responses: {
-            "202": { description: "Install request accepted" },
+            "202": {
+              description: "Install request accepted",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["installId", "status", "estimatedReadyAt"],
+                    properties: {
+                      installId: { type: "string" },
+                      status: { type: "string", enum: ["accepted"] },
+                      estimatedReadyAt: { type: "string", format: "date-time" },
+                    },
+                  },
+                },
+              },
+            },
             "400": { description: "Invalid request parameters" },
             "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
             "403": { description: "Install blocked by governance policy" },
@@ -227,10 +262,24 @@ export function buildOpenApiSpec() {
             },
           },
           responses: {
-            "202": { description: "Access request submitted" },
-            "400": { description: "Invalid request (e.g. missing justification)" },
+            "202": {
+              description: "Access request submitted",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["requestId", "status", "approvalChain"],
+                    properties: {
+                      requestId: { type: "string" },
+                      status: { type: "string", enum: ["submitted"] },
+                      approvalChain: { type: "array", items: { type: "string" } },
+                    },
+                  },
+                },
+              },
+            },
+            "400": { description: "Invalid request (e.g. missing justification or caller already has access)" },
             "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
-            "403": { description: "Access request not required — caller already has access" },
             "404": { description: "Asset not found" },
           },
         },

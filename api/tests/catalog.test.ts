@@ -39,6 +39,20 @@ describe("Catalog API", () => {
     }
   });
 
+  it("GET /catalog/assets supports page and pageSize pagination parameters", async () => {
+    const first = await request(app).get("/catalog/assets?page=1&pageSize=1");
+    const second = await request(app).get("/catalog/assets?page=2&pageSize=1");
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.body.page).toBe(1);
+    expect(first.body.pageSize).toBe(1);
+    expect(second.body.page).toBe(2);
+    expect(second.body.pageSize).toBe(1);
+    expect(first.body.assets.length).toBeLessThanOrEqual(1);
+    expect(second.body.assets.length).toBeLessThanOrEqual(1);
+  });
+
   it("GET /catalog/assets filters by domain for public assets", async () => {
     const res = await request(app).get("/catalog/assets?domain=engineering");
 
@@ -213,6 +227,17 @@ describe("Plugin Manifests", () => {
     const installOp = res.body.paths["/catalog/assets/{name}/{version}/install"].post;
     expect(Array.isArray(installOp.security)).toBe(true);
     expect(installOp.responses["401"]).toBeDefined();
+  });
+
+  it("GET /openapi.json documents catalog query and pagination parameters", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    const listOp = res.body.paths["/catalog/assets"].get;
+    const paramNames = listOp.parameters.map((p: { name: string }) => p.name);
+    expect(paramNames).toContain("q");
+    expect(paramNames).toContain("page");
+    expect(paramNames).toContain("pageSize");
+    expect(paramNames).not.toContain("keyword");
   });
 });
 

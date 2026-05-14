@@ -23,20 +23,24 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export interface ListParams {
-  keyword?: string;
+  q?: string;
   domain?: string;
   skill?: string;
   sensitivity?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export async function listAssets(
   params: ListParams = {}
-): Promise<{ total: number; assets: AssetListItem[] }> {
+): Promise<{ total: number; page: number; pageSize: number; assets: AssetListItem[] }> {
   const qs = new URLSearchParams();
-  if (params.keyword) qs.set("keyword", params.keyword);
+  if (params.q) qs.set("q", params.q);
   if (params.domain) qs.set("domain", params.domain);
   if (params.skill) qs.set("skill", params.skill);
   if (params.sensitivity) qs.set("sensitivity", params.sensitivity);
+  if (typeof params.page === "number") qs.set("page", String(params.page));
+  if (typeof params.pageSize === "number") qs.set("pageSize", String(params.pageSize));
 
   return fetchJson(`${API_BASE}/assets${qs.size ? `?${qs}` : ""}`);
 }
@@ -72,11 +76,12 @@ export async function installAsset(
 
 export async function requestAccess(
   name: string,
-  version: string
-): Promise<{ request_id: string; message: string; approval_chain: string[] }> {
+  version: string,
+  justification: string
+): Promise<{ requestId: string; status: "submitted"; approvalChain: string[] }> {
   return fetchJson(
     `${API_BASE}/assets/${encodeURIComponent(name)}/${version}/request-access`,
-    { method: "POST", body: JSON.stringify({}) }
+    { method: "POST", body: JSON.stringify({ justification }) }
   );
 }
 
