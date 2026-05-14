@@ -8,6 +8,7 @@ import pluginsRouter from "./routes/plugins.js";
 import mcpRouter from "./routes/mcp.js";
 import { createAuthMiddleware } from "./middleware/auth.middleware.js";
 import { getCounters } from "./services/observability.service.js";
+import { getCatalogCacheMetrics } from "./services/catalog.service.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -62,6 +63,7 @@ app.get("/metrics", (_req, res) => {
   res.json({
     auth_enforce_mode: process.env.AUTH_ENFORCE === "true" ? "enforce" : "observe",
     counters: getCounters(),
+    catalog_cache: getCatalogCacheMetrics(),
   });
 });
 

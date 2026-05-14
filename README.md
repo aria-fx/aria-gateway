@@ -195,7 +195,15 @@ Set `AUTH_ENFORCE=true` on the gateway to require a valid token on every request
 | `GET` | `/catalog/assets/{name}/{version}/mcpb` | Download `.mcpb` bundle for Claude Desktop |
 | `POST` | `/catalog/assets/{name}/{version}/install` | Submit async install request (`202` with `installId`, `status`, `estimatedReadyAt`) |
 | `POST` | `/catalog/assets/{name}/{version}/request-access` | Submit access request (`202` when submitted, `400` when already authorized) |
+| `POST` | `/catalog/cache/refresh` | Force-refresh catalog metadata cache (bypasses TTL) |
 | `GET` | `/catalog/stats` | Catalog summary statistics |
+
+### Catalog metadata freshness policy
+
+- Registry-backed catalog metadata uses a TTL cache (`CATALOG_CACHE_TTL_SECONDS`, default `300` seconds).
+- The staleness window target is equal to the cache TTL and is exposed as `catalog_cache.staleness_window_seconds` on `GET /metrics`.
+- Freshness SLA target is `CATALOG_FRESHNESS_SLA_P95_SECONDS` (default `300` seconds) and is measured via `catalog_cache.p95_freshness_seconds`.
+- Publish/remove workflows can trigger explicit invalidation by calling `POST /catalog/cache/refresh`.
 
 ### Governance
 
@@ -269,6 +277,8 @@ Images are built for `linux/amd64` and `linux/arm64`.
 | `ENTRA_TENANT_ID` | — | Azure AD tenant ID (builds issuer + JWKS URLs automatically) |
 | `ENTRA_AUDIENCE` | — | Expected `aud` claim (app/client ID or URI) |
 | `LEGACY_HEADERS_MODE` | `enabled` | Set to `disabled` to reject header-only requests |
+| `CATALOG_CACHE_TTL_SECONDS` | `300` | Registry metadata cache TTL and staleness window (seconds) |
+| `CATALOG_FRESHNESS_SLA_P95_SECONDS` | `300` | Target p95 freshness SLA (seconds) for cache observations |
 
 ### UI (`ui/`)
 

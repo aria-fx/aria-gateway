@@ -7,6 +7,7 @@ import {
   getAssetManifest,
   getAllPublishedAssets,
   getAllAssets,
+  refreshCatalogAssets,
 } from "../services/catalog.service.js";
 import {
   checkGovernance,
@@ -285,6 +286,28 @@ router.get("/stats", async (_req, res) => {
     by_sensitivity: byTier,
     by_domain: byDomain,
   });
+});
+
+// POST /catalog/cache/refresh — force refresh of registry-backed metadata cache
+router.post("/cache/refresh", async (_req, res) => {
+  try {
+    const metrics = await refreshCatalogAssets();
+    res.status(202).json({
+      status: "refreshed",
+      refreshedAt: metrics.last_refresh_at,
+      stalenessWindowSeconds: metrics.staleness_window_seconds,
+      freshnessSlaP95Seconds: metrics.freshness_sla_p95_seconds,
+      p95FreshnessSeconds: metrics.p95_freshness_seconds,
+      refreshSuccessTotal: metrics.refresh_success_total,
+      refreshFailureTotal: metrics.refresh_failure_total,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(502).json({
+      error: "Catalog cache refresh failed",
+      message,
+    });
+  }
 });
 
 export default router;

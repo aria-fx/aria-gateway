@@ -336,6 +336,9 @@ describe("GET /metrics endpoint", () => {
     expect(res.body).not.toHaveProperty("legacy_headers_mode");
     expect(res.body).toHaveProperty("counters");
     expect(typeof res.body.counters).toBe("object");
+    expect(res.body).toHaveProperty("catalog_cache");
+    expect(res.body.catalog_cache).toHaveProperty("staleness_window_seconds");
+    expect(res.body.catalog_cache).toHaveProperty("freshness_sla_p95_seconds");
   });
 
   it("reflects AUTH_ENFORCE=false as observe mode", async () => {
