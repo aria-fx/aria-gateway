@@ -6,12 +6,12 @@ interface InstallPanelProps {
   manifest: AssetManifest;
 }
 
-type Target = "claude-desktop" | "vscode" | "agent-framework";
+type Target = "claude-desktop" | "vscode" | "aria_cli";
 
 const TARGET_LABELS: Record<Target, string> = {
   "claude-desktop": "Claude Desktop",
   vscode: "VS Code",
-  "agent-framework": "Agent Framework",
+  aria_cli: "ARIA CLI",
 };
 
 export function InstallPanel({ manifest }: InstallPanelProps) {
@@ -26,15 +26,13 @@ export function InstallPanel({ manifest }: InstallPanelProps) {
     setState("loading");
     try {
       const res = await installAsset(manifest.record.name, manifest.record.version, target);
-      setResult(res.message);
-      if (res.config_snippet) {
-        setSnippet(JSON.stringify(res.config_snippet, null, 2));
-      }
+      setResult(`Install accepted (ID: ${res.installId}). Estimated ready at ${new Date(res.estimatedReadyAt).toLocaleString()}.`);
+      setSnippet("");
       setState("done");
     } catch (err: unknown) {
-      const e = err as { status?: number; body?: { reason?: string } };
+      const e = err as { status?: number; body?: { reason?: { message?: string } } };
       if (e.status === 403) {
-        setResult(e.body?.reason ?? "Access denied. You may request access below.");
+        setResult(e.body?.reason?.message ?? "Access denied. You may request access below.");
         setState("blocked");
       } else {
         setResult("Something went wrong. Please try again.");
@@ -46,8 +44,12 @@ export function InstallPanel({ manifest }: InstallPanelProps) {
   async function handleRequestAccess() {
     setState("requesting");
     try {
-      const res = await requestAccess(manifest.record.name, manifest.record.version);
-      setResult(res.message);
+      const res = await requestAccess(
+        manifest.record.name,
+        manifest.record.version,
+        `Requesting access to ${manifest.record.name} for business use.`
+      );
+      setResult(`Access request submitted (ID: ${res.requestId}).`);
       setState("requested");
     } catch {
       setResult("Failed to submit access request. Please contact IT.");

@@ -61,10 +61,7 @@ export interface CatalogStats {
 }
 
 export interface InstallResult {
-  success: boolean;
-  target: string;
-  asset: string;
-  version: string;
-  message: string;
-  config_snippet?: Record<string, unknown>;
+  installId: string;
+  status: "accepted";
+  estimatedReadyAt: string;
 }

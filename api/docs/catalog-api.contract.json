@@ -21,7 +21,7 @@
     {
       "path": "/catalog/assets/{name}/{version}/request-access",
       "method": "post",
-      "requiredResponseStatuses": ["202", "400", "401", "403", "404"]
+      "requiredResponseStatuses": ["202", "400", "401", "404"]
     }
   ]
 }

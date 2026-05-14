@@ -18,7 +18,7 @@ export function CatalogPage() {
       setError(null);
       try {
         const [catalog, catalogStats] = await Promise.all([
-          listAssets({ keyword: kw || undefined, domain: dm || undefined }),
+          listAssets({ q: kw || undefined, domain: dm || undefined }),
           getCatalogStats(),
         ]);
         setAssets(catalog.assets);
