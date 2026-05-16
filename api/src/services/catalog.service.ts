@@ -11,12 +11,16 @@ const ASSET_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3001";
 const OCI_INDEX_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json";
 const OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json";
 const DEFAULT_CACHE_TTL_SECONDS = 300;
+const DEFAULT_FRESHNESS_SLA_P95_SECONDS = 300;
 const DEFAULT_CATALOG_REGISTRY_URL = "https://ghcr.io";
+const MAX_FRESHNESS_SAMPLES = 200;
 
 export type CatalogProviderMode = "registry" | "sample";
 
 interface CatalogProvider {
   getAssets(): Promise<CatalogAsset[]>;
+  refreshAssets(): Promise<CatalogAsset[]>;
+  getCacheMetrics(): CatalogCacheMetrics;
 }
 
 interface RegistryIndexManifest {
@@ -34,6 +38,21 @@ interface RegistryManifest {
   };
 }
 
+export interface CatalogCacheMetrics {
+  provider_mode: CatalogProviderMode;
+  cache_ttl_seconds: number;
+  staleness_window_seconds: number;
+  freshness_sla_p95_seconds: number;
+  p95_freshness_seconds: number | null;
+  current_freshness_seconds: number | null;
+  last_refresh_at: string | null;
+  last_refresh_status: "never" | "ok" | "error";
+  last_refresh_error: string | null;
+  last_refresh_duration_ms: number | null;
+  refresh_success_total: number;
+  refresh_failure_total: number;
+}
+
 const CATALOG_ASSET_ANNOTATION_KEYS = [
   "io.aria.asset",
   "io.aria.catalog.asset",
@@ -46,6 +65,32 @@ function isLocalDevelopment(): boolean {
 
 function isSampleModeEnabled(): boolean {
   return process.env.CATALOG_SAMPLE_MODE === "true";
+}
+
+function resolvePositiveSeconds(value: string | undefined, fallback: number): number {
+  const seconds = Number(value ?? fallback);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return fallback;
+  }
+  return seconds;
+}
+
+function resolveCacheTtlSeconds(): number {
+  return resolvePositiveSeconds(process.env.CATALOG_CACHE_TTL_SECONDS, DEFAULT_CACHE_TTL_SECONDS);
+}
+
+function resolveFreshnessSlaP95Seconds(): number {
+  return resolvePositiveSeconds(
+    process.env.CATALOG_FRESHNESS_SLA_P95_SECONDS,
+    DEFAULT_FRESHNESS_SLA_P95_SECONDS
+  );
+}
+
+function toP95(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.floor(sorted.length * 0.95);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, index))];
 }
 
 export function resolveCatalogProviderMode(): CatalogProviderMode {
@@ -117,6 +162,28 @@ class SampleCatalogProvider implements CatalogProvider {
   async getAssets(): Promise<CatalogAsset[]> {
     return sampleAssets;
   }
+
+  async refreshAssets(): Promise<CatalogAsset[]> {
+    return sampleAssets;
+  }
+
+  getCacheMetrics(): CatalogCacheMetrics {
+    const ttlSeconds = resolveCacheTtlSeconds();
+    return {
+      provider_mode: "sample",
+      cache_ttl_seconds: ttlSeconds,
+      staleness_window_seconds: ttlSeconds,
+      freshness_sla_p95_seconds: resolveFreshnessSlaP95Seconds(),
+      p95_freshness_seconds: 0,
+      current_freshness_seconds: 0,
+      last_refresh_at: null,
+      last_refresh_status: "never",
+      last_refresh_error: null,
+      last_refresh_duration_ms: null,
+      refresh_success_total: 0,
+      refresh_failure_total: 0,
+    };
+  }
 }
 
 class RegistryCatalogProvider implements CatalogProvider {
@@ -126,30 +193,99 @@ class RegistryCatalogProvider implements CatalogProvider {
 
   private inflightLoad?: Promise<CatalogAsset[]>;
 
+  private refreshSuccessTotal = 0;
+
+  private refreshFailureTotal = 0;
+
+  private lastRefreshAt = 0;
+
+  private lastRefreshStatus: "never" | "ok" | "error" = "never";
+
+  private lastRefreshError: string | null = null;
+
+  private lastRefreshDurationMs: number | null = null;
+
+  private freshnessSamplesSeconds: number[] = [];
+
   async getAssets(): Promise<CatalogAsset[]> {
     const now = Date.now();
     if (this.cache && now < this.cacheExpiresAt) {
+      this.observeFreshness(now);
       return this.cache;
     }
 
     if (!this.inflightLoad) {
-      this.inflightLoad = this.loadAssetsFromRegistry()
-        .then((assets) => {
-          const ttlSeconds = Number(process.env.CATALOG_CACHE_TTL_SECONDS ?? DEFAULT_CACHE_TTL_SECONDS);
-          const cacheTtl =
-            Number.isFinite(ttlSeconds) && ttlSeconds > 0
-              ? ttlSeconds
-              : DEFAULT_CACHE_TTL_SECONDS;
-          this.cache = assets;
-          this.cacheExpiresAt = Date.now() + cacheTtl * 1000;
-          return assets;
-        })
-        .finally(() => {
-          this.inflightLoad = undefined;
-        });
+      this.inflightLoad = this.loadAndCacheAssets();
     }
 
-    return this.inflightLoad;
+    const assets = await this.inflightLoad;
+    this.observeFreshness();
+    return assets;
+  }
+
+  async refreshAssets(): Promise<CatalogAsset[]> {
+    this.cacheExpiresAt = 0;
+    if (!this.inflightLoad) {
+      this.inflightLoad = this.loadAndCacheAssets();
+    }
+    const assets = await this.inflightLoad;
+    this.observeFreshness();
+    return assets;
+  }
+
+  getCacheMetrics(): CatalogCacheMetrics {
+    const now = Date.now();
+    const ttlSeconds = resolveCacheTtlSeconds();
+    const currentFreshnessSeconds =
+      this.lastRefreshAt > 0 ? Math.max(0, (now - this.lastRefreshAt) / 1000) : null;
+    return {
+      provider_mode: "registry",
+      cache_ttl_seconds: ttlSeconds,
+      staleness_window_seconds: ttlSeconds,
+      freshness_sla_p95_seconds: resolveFreshnessSlaP95Seconds(),
+      p95_freshness_seconds: toP95(this.freshnessSamplesSeconds),
+      current_freshness_seconds: currentFreshnessSeconds,
+      last_refresh_at: this.lastRefreshAt > 0 ? new Date(this.lastRefreshAt).toISOString() : null,
+      last_refresh_status: this.lastRefreshStatus,
+      last_refresh_error: this.lastRefreshError,
+      last_refresh_duration_ms: this.lastRefreshDurationMs,
+      refresh_success_total: this.refreshSuccessTotal,
+      refresh_failure_total: this.refreshFailureTotal,
+    };
+  }
+
+  private observeFreshness(now = Date.now()): void {
+    if (!this.lastRefreshAt) return;
+    const freshnessSeconds = Math.max(0, (now - this.lastRefreshAt) / 1000);
+    this.freshnessSamplesSeconds.push(freshnessSeconds);
+    if (this.freshnessSamplesSeconds.length > MAX_FRESHNESS_SAMPLES) {
+      this.freshnessSamplesSeconds.shift();
+    }
+  }
+
+  private async loadAndCacheAssets(): Promise<CatalogAsset[]> {
+    const startedAt = Date.now();
+    try {
+      const assets = await this.loadAssetsFromRegistry();
+      const ttlSeconds = resolveCacheTtlSeconds();
+      this.cache = assets;
+      this.cacheExpiresAt = Date.now() + ttlSeconds * 1000;
+      this.refreshSuccessTotal += 1;
+      this.lastRefreshAt = Date.now();
+      this.lastRefreshStatus = "ok";
+      this.lastRefreshError = null;
+      this.lastRefreshDurationMs = Date.now() - startedAt;
+      this.observeFreshness(this.lastRefreshAt);
+      return assets;
+    } catch (error) {
+      this.refreshFailureTotal += 1;
+      this.lastRefreshStatus = "error";
+      this.lastRefreshError = error instanceof Error ? error.message : String(error);
+      this.lastRefreshDurationMs = Date.now() - startedAt;
+      throw error;
+    } finally {
+      this.inflightLoad = undefined;
+    }
   }
 
   private async loadAssetsFromRegistry(): Promise<CatalogAsset[]> {
@@ -202,6 +338,21 @@ class RegistryWithSampleFallbackProvider implements CatalogProvider {
       throw error;
     }
   }
+
+  async refreshAssets(): Promise<CatalogAsset[]> {
+    try {
+      return await this.registryProvider.refreshAssets();
+    } catch (error) {
+      if (isLocalDevelopment() && isSampleModeEnabled()) {
+        return this.sampleProvider.refreshAssets();
+      }
+      throw error;
+    }
+  }
+
+  getCacheMetrics(): CatalogCacheMetrics {
+    return this.registryProvider.getCacheMetrics();
+  }
 }
 
 let providerInstance: CatalogProvider | null = null;
@@ -225,6 +376,21 @@ async function getCatalogAssets(): Promise<CatalogAsset[]> {
 
 export function resetCatalogProviderForTests(): void {
   providerInstance = null;
+}
+
+export async function refreshCatalogAssets(): Promise<CatalogCacheMetrics> {
+  if (!providerInstance) {
+    providerInstance = createCatalogProvider();
+  }
+  await providerInstance.refreshAssets();
+  return providerInstance.getCacheMetrics();
+}
+
+export function getCatalogCacheMetrics(): CatalogCacheMetrics {
+  if (!providerInstance) {
+    providerInstance = createCatalogProvider();
+  }
+  return providerInstance.getCacheMetrics();
 }
 
 function resolveTrustBadge(asset: CatalogAsset): TrustBadge {

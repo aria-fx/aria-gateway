@@ -284,6 +284,39 @@ export function buildOpenApiSpec() {
           },
         },
       },
+      "/catalog/cache/refresh": {
+        post: {
+          operationId: "refreshCatalogCache",
+          summary: "Force-refresh catalog metadata cache",
+          description:
+            "Bypasses TTL and fetches the latest registry-backed catalog metadata. Use after publishing or removing assets.",
+          security: [{ BearerAuth: [] }],
+          responses: {
+            "202": {
+              description: "Catalog cache refresh completed",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["status", "stalenessWindowSeconds", "freshnessSlaP95Seconds"],
+                    properties: {
+                      status: { type: "string", enum: ["refreshed"] },
+                      refreshedAt: { type: "string", format: "date-time", nullable: true },
+                      stalenessWindowSeconds: { type: "integer", minimum: 1 },
+                      freshnessSlaP95Seconds: { type: "integer", minimum: 1 },
+                      p95FreshnessSeconds: { type: "number", nullable: true },
+                      refreshSuccessTotal: { type: "integer", minimum: 0 },
+                      refreshFailureTotal: { type: "integer", minimum: 0 },
+                    },
+                  },
+                },
+              },
+            },
+            "401": { description: "Missing or invalid bearer token (when auth enforcement is enabled)" },
+            "502": { description: "Catalog refresh failed due to registry request error" },
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {

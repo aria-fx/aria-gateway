@@ -168,6 +168,16 @@ describe("Catalog API", () => {
     expect(res.body.by_sensitivity).toBeDefined();
     expect(res.body.by_domain).toBeDefined();
   });
+
+  it("POST /catalog/cache/refresh returns cache freshness metadata", async () => {
+    const res = await request(app).post("/catalog/cache/refresh");
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("refreshed");
+    expect(res.body.stalenessWindowSeconds).toBeGreaterThan(0);
+    expect(res.body.freshnessSlaP95Seconds).toBeGreaterThan(0);
+    expect(res.body.refreshSuccessTotal).toBeGreaterThanOrEqual(0);
+    expect(res.body.refreshFailureTotal).toBeGreaterThanOrEqual(0);
+  });
 });
 
 describe("Plugin Manifests", () => {
@@ -227,6 +237,9 @@ describe("Plugin Manifests", () => {
     const installOp = res.body.paths["/catalog/assets/{name}/{version}/install"].post;
     expect(Array.isArray(installOp.security)).toBe(true);
     expect(installOp.responses["401"]).toBeDefined();
+    const refreshOp = res.body.paths["/catalog/cache/refresh"].post;
+    expect(Array.isArray(refreshOp.security)).toBe(true);
+    expect(refreshOp.responses["202"]).toBeDefined();
   });
 
   it("GET /openapi.json documents catalog query and pagination parameters", async () => {
