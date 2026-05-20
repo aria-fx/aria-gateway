@@ -138,8 +138,7 @@ router.get("/assets/:name/:version/manifest", async (req, res) => {
 
   // Budget threshold check (invoke flow)
   if (full.governance.budget_threshold !== undefined) {
-    const currency = full.governance.budget_currency ?? "USD";
-    const budget = checkBudgetThreshold(name, full.governance.budget_threshold, currency);
+    const budget = checkBudgetThreshold(name, full.governance.budget_threshold);
     if (budget.exceeded) {
       emitBudgetEnforcement({
         asset_name: name,
@@ -247,8 +246,7 @@ router.post("/assets/:name/:version/install", async (req, res) => {
 
   // Budget threshold check (install flow)
   if (asset.governance.budget_threshold !== undefined) {
-    const currency = asset.governance.budget_currency ?? "USD";
-    const budget = checkBudgetThreshold(name, asset.governance.budget_threshold, currency);
+    const budget = checkBudgetThreshold(name, asset.governance.budget_threshold);
     if (budget.exceeded) {
       emitBudgetEnforcement({
         asset_name: name,

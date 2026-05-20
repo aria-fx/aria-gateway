@@ -44,7 +44,7 @@ export const providerCostRecordSchema = z.object({
   asset_version: z.string().optional(),
 
   /** Total spend for the period in the reported currency (non-negative). */
-  cost_usd: z.number().nonnegative(),
+  cost: z.number().nonnegative(),
 
   /** Inclusive start of the billing period (ISO 8601). */
   period_start: z.string().datetime({ offset: true }),
@@ -83,8 +83,8 @@ export interface AssetCostSummary {
   asset_name: string;
   asset_version?: string;
   provider: string;
-  /** Sum of cost_usd for all matching records. */
-  total_cost_usd: number;
+  /** Sum of cost for all matching records. */
+  total_cost: number;
   /** Earliest period_start across matched records. */
   period_start: string;
   /** Latest period_end across matched records. */

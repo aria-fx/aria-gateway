@@ -59,19 +59,18 @@ const FIXTURE_ASSET: CatalogAsset = {
     sensitivity_tier: "public",
     allowed_consumers: ["all-employees"],
     budget_threshold: 100,
-    budget_currency: "EUR",
   },
 };
 
-/** Cost record that pushes spend (120) above the 100 EUR threshold. */
+/** Cost record that pushes spend (120) above the 100 threshold. */
 const OVER_THRESHOLD_RECORD = {
   provider: "azure",
   asset_name: BUDGET_ASSET_NAME,
   asset_version: BUDGET_ASSET_VERSION,
-  cost_usd: 120,
+  cost: 120,
   period_start: "2026-01-01T00:00:00Z",
   period_end: "2026-01-31T23:59:59Z",
-  currency: "EUR",
+  currency: "USD",
 };
 
 // ---------------------------------------------------------------------------
@@ -118,7 +117,7 @@ describe("GET /catalog/assets/:name/:version/manifest — 402 budget enforcement
     );
     expect(res.body.current_spend).toBe(120);
     expect(res.body.threshold).toBe(100);
-    expect(res.body.currency).toBe("EUR");
+    expect(res.body.currency).toBe("USD");
   });
 
   it("includes a structured reason object with code and message in the 402 body", async () => {
@@ -127,7 +126,7 @@ describe("GET /catalog/assets/:name/:version/manifest — 402 budget enforcement
     );
     expect(res.body.reason).toMatchObject({
       code: "budget_exceeded",
-      message: expect.stringContaining("EUR"),
+      message: expect.stringContaining("USD"),
     });
   });
 
@@ -183,7 +182,7 @@ describe("POST /catalog/assets/:name/:version/install — 402 budget enforcement
       .send({ target: "claude_desktop" });
     expect(res.body.current_spend).toBe(120);
     expect(res.body.threshold).toBe(100);
-    expect(res.body.currency).toBe("EUR");
+    expect(res.body.currency).toBe("USD");
   });
 
   it("includes a structured reason object with code and message in the 402 body", async () => {
@@ -192,7 +191,7 @@ describe("POST /catalog/assets/:name/:version/install — 402 budget enforcement
       .send({ target: "claude_desktop" });
     expect(res.body.reason).toMatchObject({
       code: "budget_exceeded",
-      message: expect.stringContaining("EUR"),
+      message: expect.stringContaining("USD"),
     });
   });
 

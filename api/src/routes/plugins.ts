@@ -412,7 +412,7 @@ export function buildOpenApiSpec() {
           operationId: "getTopAssetsByCost",
           summary: "Get top assets by total spend",
           description:
-            "Returns up to `limit` assets ordered by total_cost_usd descending over the specified date window.",
+            "Returns up to `limit` assets ordered by total_cost descending over the specified date window.",
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -503,7 +503,7 @@ export function buildOpenApiSpec() {
         },
         ProviderCostRecord: {
           type: "object",
-          required: ["provider", "asset_name", "cost_usd", "period_start", "period_end"],
+          required: ["provider", "asset_name", "cost", "period_start", "period_end"],
           properties: {
             provider: {
               type: "string",
@@ -521,7 +521,7 @@ export function buildOpenApiSpec() {
               type: "string",
               description: "Optional semver asset version",
             },
-            cost_usd: {
+            cost: {
               type: "number",
               description: "Total spend for the period (non-negative)",
               minimum: 0,
@@ -550,12 +550,12 @@ export function buildOpenApiSpec() {
         },
         AssetCostSummary: {
           type: "object",
-          required: ["asset_name", "provider", "total_cost_usd", "period_start", "period_end", "record_count"],
+          required: ["asset_name", "provider", "total_cost", "period_start", "period_end", "record_count"],
           properties: {
             asset_name: { type: "string" },
             asset_version: { type: "string" },
             provider: { type: "string" },
-            total_cost_usd: { type: "number", description: "Aggregated spend in USD" },
+            total_cost: { type: "number", description: "Aggregated spend" },
             period_start: { type: "string", format: "date-time" },
             period_end: { type: "string", format: "date-time" },
             record_count: { type: "integer", minimum: 1, description: "Number of raw records aggregated" },

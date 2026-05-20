@@ -42,7 +42,7 @@ const BASE_RECORD = {
   provider: "azure",
   asset_name: ASSET_NAME,
   asset_version: ASSET_VERSION,
-  cost_usd: 50,
+  cost: 50,
   period_start: "2026-01-01T00:00:00Z",
   period_end: "2026-01-31T23:59:59Z",
   currency: "USD",
@@ -64,58 +64,58 @@ describe("checkBudgetThreshold — service unit tests", () => {
   });
 
   it("returns exceeded=false when spend is below the threshold", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 40 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 40 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(false);
     expect(result.current_spend).toBe(40);
   });
 
   it("returns exceeded=true when spend equals the threshold (boundary)", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 100 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 100 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(true);
     expect(result.current_spend).toBe(100);
   });
 
   it("returns exceeded=true when spend exceeds the threshold", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 150 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 150 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(true);
     expect(result.current_spend).toBe(150);
   });
 
   it("aggregates spend across multiple records for the same asset", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 40 });
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 40 });
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 40 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 40 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 40 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 40 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(true);
     expect(result.current_spend).toBe(120);
   });
 
   it("aggregates spend across multiple providers for the same asset", () => {
-    ingestCostRecord({ ...BASE_RECORD, provider: "azure", cost_usd: 60 });
-    ingestCostRecord({ ...BASE_RECORD, provider: "aws", cost_usd: 60 });
+    ingestCostRecord({ ...BASE_RECORD, provider: "azure", cost: 60 });
+    ingestCostRecord({ ...BASE_RECORD, provider: "aws", cost: 60 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(true);
     expect(result.current_spend).toBe(120);
   });
 
   it("ignores records for other assets", () => {
-    ingestCostRecord({ ...BASE_RECORD, asset_name: "aria.dev/agents/other", cost_usd: 999 });
+    ingestCostRecord({ ...BASE_RECORD, asset_name: "aria.dev/agents/other", cost: 999 });
     const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(false);
     expect(result.current_spend).toBe(0);
   });
 
-  it("uses the provided currency code and surfaces it in the result", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 40 });
-    const result = checkBudgetThreshold(ASSET_NAME, 100, "EUR");
-    expect(result.currency).toBe("EUR");
+  it("always returns currency as USD since spend is accumulated from cost", () => {
+    ingestCostRecord({ ...BASE_RECORD, cost: 40 });
+    const result = checkBudgetThreshold(ASSET_NAME, 100);
+    expect(result.currency).toBe("USD");
     expect(result.threshold).toBe(100);
   });
 
-  it("defaults to USD when currency is not specified", () => {
+  it("defaults currency to USD when no records are present", () => {
     const result = checkBudgetThreshold(ASSET_NAME, 50);
     expect(result.currency).toBe("USD");
   });
@@ -260,7 +260,7 @@ describe("POST /catalog/assets/:name/:version/install — budget enforcement", (
 
   it("returns 202 when spend is below the threshold", async () => {
     // Seed spend well under any threshold the asset might have
-    ingestCostRecord({ ...BASE_RECORD, asset_name: PUBLIC_ASSET_NAME, cost_usd: 1 });
+    ingestCostRecord({ ...BASE_RECORD, asset_name: PUBLIC_ASSET_NAME, cost: 1 });
     const res = await request(app)
       .post(`/catalog/assets/${ENCODED_PUBLIC_ASSET}/${PUBLIC_ASSET_VERSION}/install`)
       .send({ target: "claude_desktop" });
@@ -281,33 +281,34 @@ describe("checkBudgetThreshold integration with ingestCostRecord", () => {
   beforeEach(() => clearCostRecords());
 
   it("is not exceeded immediately after clearing records", () => {
-    const result = checkBudgetThreshold(ASSET_NAME, 50, "USD");
+    const result = checkBudgetThreshold(ASSET_NAME, 50);
     expect(result.exceeded).toBe(false);
     expect(result.current_spend).toBe(0);
     expect(result.currency).toBe("USD");
   });
 
   it("trips the threshold after records push spend over the limit", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 30 });
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 30 });
-    const result = checkBudgetThreshold(ASSET_NAME, 50, "USD");
+    ingestCostRecord({ ...BASE_RECORD, cost: 30 });
+    ingestCostRecord({ ...BASE_RECORD, cost: 30 });
+    const result = checkBudgetThreshold(ASSET_NAME, 50);
     expect(result.exceeded).toBe(true);
     expect(result.current_spend).toBe(60);
     expect(result.threshold).toBe(50);
   });
 
-  it("works with a non-USD currency code (EUR)", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 200 });
-    const result = checkBudgetThreshold(ASSET_NAME, 100, "EUR");
+  it("enforces the threshold as a plain number regardless of configured budget_currency", () => {
+    // Records ingested in USD; threshold is enforced as a number — no FX conversion.
+    ingestCostRecord({ ...BASE_RECORD, cost: 200 });
+    const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(true);
-    expect(result.currency).toBe("EUR");
+    expect(result.currency).toBe("USD");
   });
 
-  it("works with a non-USD currency code (GBP)", () => {
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 50 });
-    const result = checkBudgetThreshold(ASSET_NAME, 100, "GBP");
+  it("reports USD as the currency even when spend is below the threshold", () => {
+    ingestCostRecord({ ...BASE_RECORD, cost: 50 });
+    const result = checkBudgetThreshold(ASSET_NAME, 100);
     expect(result.exceeded).toBe(false);
-    expect(result.currency).toBe("GBP");
+    expect(result.currency).toBe("USD");
   });
 });
 
@@ -329,7 +330,7 @@ describe("GET /catalog/assets/:name/:version/manifest — budget enforcement", (
   });
 
   it("returns 200 when spend is below any threshold the asset might carry", async () => {
-    ingestCostRecord({ ...BASE_RECORD, asset_name: PUBLIC_ASSET_NAME, cost_usd: 1 });
+    ingestCostRecord({ ...BASE_RECORD, asset_name: PUBLIC_ASSET_NAME, cost: 1 });
     const res = await request(app).get(
       `/catalog/assets/${ENCODED_PUBLIC_ASSET}/${PUBLIC_ASSET_VERSION}/manifest`
     );
@@ -344,12 +345,14 @@ describe("GET /catalog/assets/:name/:version/manifest — budget enforcement", (
 describe("402 response payload — currency-agnostic shape", () => {
   it("budget check result exposes currency field, not a USD-specific key", () => {
     clearCostRecords();
-    ingestCostRecord({ ...BASE_RECORD, cost_usd: 200 });
-    const result = checkBudgetThreshold(ASSET_NAME, 100, "EUR");
+    ingestCostRecord({ ...BASE_RECORD, cost: 200 });
+    const result = checkBudgetThreshold(ASSET_NAME, 100);
     // Verify the currency-agnostic field names are present
     expect(result).toHaveProperty("current_spend");
     expect(result).toHaveProperty("threshold");
     expect(result).toHaveProperty("currency");
+    // currency is always USD since spend is accumulated from cost
+    expect(result.currency).toBe("USD");
     // Verify the old USD-specific names are absent
     expect(result).not.toHaveProperty("current_usd");
     expect(result).not.toHaveProperty("threshold_usd");
