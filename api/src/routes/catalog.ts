@@ -16,6 +16,7 @@ import {
 import { checkBudgetThreshold } from "../services/cost.service.js";
 import { emitBudgetEnforcement } from "../services/observability.service.js";
 import { generateMcpbManifest } from "../services/mcpb.service.js";
+import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 
 const router = Router();
 
@@ -151,7 +152,7 @@ router.get("/assets/:name/:version/manifest", async (req, res) => {
       });
       res.status(402).json({
         error: "Asset invoke blocked: budget threshold exceeded",
-        contract_version: "1.0.0",
+        contract_version: POLICY_CONTRACT_VERSION,
         allowed: false,
         reason: {
           code: "budget_exceeded",
@@ -260,7 +261,7 @@ router.post("/assets/:name/:version/install", async (req, res) => {
       });
       res.status(402).json({
         error: "Install blocked: asset budget threshold exceeded",
-        contract_version: "1.0.0",
+        contract_version: POLICY_CONTRACT_VERSION,
         allowed: false,
         reason: {
           code: "budget_exceeded",
