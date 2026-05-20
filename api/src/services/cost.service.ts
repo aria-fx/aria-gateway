@@ -119,10 +119,11 @@ export function checkBudgetThreshold(
   threshold: number,
   currency: string = "USD"
 ): BudgetCheckResult {
-  const summaries = getAssetCostSummaries();
-  const assetSummaries = summaries.filter((s) => s.asset_name === assetName);
   const current_spend = roundUsd(
-    assetSummaries.reduce((sum, s) => sum + s.total_cost_usd, 0)
+    records.reduce(
+      (sum, record) => sum + (record.asset_name === assetName ? record.cost_usd : 0),
+      0
+    )
   );
   return {
     exceeded: current_spend >= threshold,
