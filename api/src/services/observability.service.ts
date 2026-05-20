@@ -60,9 +60,18 @@ export interface PolicyDenyEvent {
   timestamp: string;
 }
 
+export interface CostIngestionEvent {
+  event: "cost.ingestion";
+  record_id: string;
+  provider: string;
+  asset_name: string;
+  timestamp: string;
+}
+
 export type ObservabilityEvent =
   | AuthFailureEvent
-  | PolicyDenyEvent;
+  | PolicyDenyEvent
+  | CostIngestionEvent;
 
 // ---------------------------------------------------------------------------
 // In-memory counters
@@ -151,6 +160,27 @@ export function emitPolicyDeny(opts: {
     asset_version: opts.asset_version,
     consumer_id: opts.consumer_id,
     deny_reason: opts.deny_reason,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Emit an audit event for a successfully ingested cost record.
+ *
+ * Call this after persisting each cost record so that cost ingestion
+ * activity is captured in the structured event log.
+ */
+export function emitCostIngestion(opts: {
+  record_id: string;
+  provider: string;
+  asset_name: string;
+}): void {
+  inc("cost.ingestion");
+  emit({
+    event: "cost.ingestion",
+    record_id: opts.record_id,
+    provider: opts.provider,
+    asset_name: opts.asset_name,
     timestamp: new Date().toISOString(),
   });
 }

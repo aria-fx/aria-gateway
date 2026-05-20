@@ -22,6 +22,21 @@
       "path": "/catalog/assets/{name}/{version}/request-access",
       "method": "post",
       "requiredResponseStatuses": ["202", "400", "401", "404"]
+    },
+    {
+      "path": "/cost/ingest",
+      "method": "post",
+      "requiredResponseStatuses": ["201", "400", "401"]
+    },
+    {
+      "path": "/cost/assets",
+      "method": "get",
+      "requiredResponseStatuses": ["200", "400", "401"]
+    },
+    {
+      "path": "/cost/assets/top",
+      "method": "get",
+      "requiredResponseStatuses": ["200", "400", "401"]
     }
   ]
 }
