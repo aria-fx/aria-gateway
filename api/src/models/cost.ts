@@ -9,6 +9,27 @@
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
+// Currency
+// ---------------------------------------------------------------------------
+
+/**
+ * Well-known ISO 4217 currency codes accepted throughout the cost and budget
+ * APIs.  Use a free-form three-letter string for codes not listed here.
+ */
+export type CurrencyCode =
+  | "USD" // US Dollar
+  | "EUR" // Euro
+  | "GBP" // British Pound Sterling
+  | "JPY" // Japanese Yen
+  | "CAD" // Canadian Dollar
+  | "AUD" // Australian Dollar
+  | "CHF" // Swiss Franc
+  | "CNY" // Chinese Yuan Renminbi
+  | "INR" // Indian Rupee
+  | "BRL" // Brazilian Real
+  | (string & {}); // extensible: any ISO 4217 three-letter code
+
+// ---------------------------------------------------------------------------
 // Ingestion schema
 // ---------------------------------------------------------------------------
 

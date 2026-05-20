@@ -173,6 +173,9 @@
           "401": {
             "description": "Missing or invalid bearer token (when auth enforcement is enabled)"
           },
+          "402": {
+            "description": "Asset invoke blocked: budget threshold exceeded"
+          },
           "403": {
             "description": "Access denied by governance policy"
           },
@@ -269,6 +272,9 @@
           },
           "401": {
             "description": "Missing or invalid bearer token (when auth enforcement is enabled)"
+          },
+          "402": {
+            "description": "Install blocked: asset budget threshold exceeded"
           },
           "403": {
             "description": "Install blocked by governance policy"

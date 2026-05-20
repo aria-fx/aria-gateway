@@ -13,6 +13,8 @@ import {
   checkGovernance,
   parseConsumerContext,
 } from "../services/governance.service.js";
+import { checkBudgetThreshold } from "../services/cost.service.js";
+import { emitBudgetEnforcement } from "../services/observability.service.js";
 import { generateMcpbManifest } from "../services/mcpb.service.js";
 
 const router = Router();
@@ -133,6 +135,37 @@ router.get("/assets/:name/:version/manifest", async (req, res) => {
     return;
   }
 
+  // Budget threshold check (invoke flow)
+  if (full.governance.budget_threshold !== undefined) {
+    const currency = full.governance.budget_currency ?? "USD";
+    const budget = checkBudgetThreshold(name, full.governance.budget_threshold, currency);
+    if (budget.exceeded) {
+      emitBudgetEnforcement({
+        asset_name: name,
+        asset_version: version,
+        consumer_id: consumer.consumer_id,
+        flow: "invoke",
+        current_spend: budget.current_spend,
+        threshold: budget.threshold,
+        currency: budget.currency,
+      });
+      res.status(402).json({
+        error: "Asset invoke blocked: budget threshold exceeded",
+        contract_version: "1.0.0",
+        allowed: false,
+        reason: {
+          code: "budget_exceeded",
+          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
+        },
+        current_spend: budget.current_spend,
+        threshold: budget.threshold,
+        currency: budget.currency,
+        action_url: `/cost/assets?asset_name=${encodeURIComponent(name)}`,
+      });
+      return;
+    }
+  }
+
   const manifest = await getAssetManifest(name, version);
   if (!manifest) {
     res.status(404).json({ error: `Asset "${name}@${version}" not found` });
@@ -209,6 +242,37 @@ router.post("/assets/:name/:version/install", async (req, res) => {
       reason: toGovernanceBlockReason(check.reason),
     });
     return;
+  }
+
+  // Budget threshold check (install flow)
+  if (asset.governance.budget_threshold !== undefined) {
+    const currency = asset.governance.budget_currency ?? "USD";
+    const budget = checkBudgetThreshold(name, asset.governance.budget_threshold, currency);
+    if (budget.exceeded) {
+      emitBudgetEnforcement({
+        asset_name: name,
+        asset_version: version,
+        consumer_id: consumer.consumer_id,
+        flow: "install",
+        current_spend: budget.current_spend,
+        threshold: budget.threshold,
+        currency: budget.currency,
+      });
+      res.status(402).json({
+        error: "Install blocked: asset budget threshold exceeded",
+        contract_version: "1.0.0",
+        allowed: false,
+        reason: {
+          code: "budget_exceeded",
+          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
+        },
+        current_spend: budget.current_spend,
+        threshold: budget.threshold,
+        currency: budget.currency,
+        action_url: `/cost/assets?asset_name=${encodeURIComponent(name)}`,
+      });
+      return;
+    }
   }
 
   // Generate install ID and estimated ready time per spec

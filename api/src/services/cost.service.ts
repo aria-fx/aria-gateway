@@ -81,6 +81,51 @@ export function clearCostRecords(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Budget threshold check
+// ---------------------------------------------------------------------------
+
+export interface BudgetCheckResult {
+  /** Whether current spend meets or exceeds the configured threshold. */
+  exceeded: boolean;
+  /** Sum of all recorded spend for the asset (rounded to the nearest cent). */
+  current_spend: number;
+  /** The configured threshold. */
+  threshold: number;
+  /** ISO 4217 currency code that applies to both `current_spend` and `threshold`. */
+  currency: string;
+}
+
+/**
+ * Check whether the accumulated spend for an asset has reached a configured
+ * threshold.  Totals all records for the given `assetName` (across all
+ * providers and versions) with no date-window filter, so enforcement is
+ * based on lifetime spend rather than a rolling window.
+ *
+ * @param assetName   - OASF asset name to aggregate spend for.
+ * @param threshold   - Maximum spend value before enforcement triggers.
+ * @param currency    - ISO 4217 currency code for the threshold (default "USD").
+ *
+ * Returns `exceeded: true` when `current_spend >= threshold`.
+ */
+export function checkBudgetThreshold(
+  assetName: string,
+  threshold: number,
+  currency: string = "USD"
+): BudgetCheckResult {
+  const summaries = getAssetCostSummaries();
+  const assetSummaries = summaries.filter((s) => s.asset_name === assetName);
+  const current_spend = roundUsd(
+    assetSummaries.reduce((sum, s) => sum + s.total_cost_usd, 0)
+  );
+  return {
+    exceeded: current_spend >= threshold,
+    current_spend,
+    threshold,
+    currency,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 
