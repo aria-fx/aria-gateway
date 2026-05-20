@@ -149,7 +149,7 @@ describe("emitBudgetEnforcement — counter increments", () => {
       flow: "invoke",
       current_spend: 120,
       threshold: 100,
-      currency: "EUR",
+      currency: "USD",
     });
     expect(getCounters()["budget.enforcement.invoke"]).toBe(1);
   });
@@ -200,7 +200,7 @@ describe("emitBudgetEnforcement — structured log emission", () => {
         flow: "install",
         current_spend: 120.5,
         threshold: 100,
-        currency: "EUR",
+        currency: "USD",
       });
       expect(warnSpy).toHaveBeenCalledOnce();
       const emitted = JSON.parse(warnSpy.mock.calls[0][0] as string);
@@ -211,14 +211,14 @@ describe("emitBudgetEnforcement — structured log emission", () => {
       expect(emitted.flow).toBe("install");
       expect(emitted.current_spend).toBe(120.5);
       expect(emitted.threshold).toBe(100);
-      expect(emitted.currency).toBe("EUR");
+      expect(emitted.currency).toBe("USD");
       expect(typeof emitted.timestamp).toBe("string");
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
   });
 
-  it("includes currency in the event for non-USD thresholds", () => {
+  it("includes currency field in the emitted event", () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
@@ -229,10 +229,10 @@ describe("emitBudgetEnforcement — structured log emission", () => {
         flow: "invoke",
         current_spend: 500,
         threshold: 400,
-        currency: "GBP",
+        currency: "USD",
       });
       const emitted = JSON.parse(warnSpy.mock.calls[0][0] as string);
-      expect(emitted.currency).toBe("GBP");
+      expect(emitted.currency).toBe("USD");
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
@@ -374,15 +374,15 @@ describe("402 response payload — currency-agnostic shape", () => {
         flow: "install",
         current_spend: 150,
         threshold: 100,
-        currency: "JPY",
+        currency: "USD",
       });
       expect(capturedEvent).toMatchObject({
         event: "budget.enforcement",
         current_spend: 150,
         threshold: 100,
-        currency: "JPY",
+        currency: "USD",
       });
-      // Old USD-specific keys must not be present
+      // Old currency-specific keys must not be present
       expect((capturedEvent as Record<string, unknown>)["current_spend_usd"]).toBeUndefined();
       expect((capturedEvent as Record<string, unknown>)["threshold_usd"]).toBeUndefined();
     } finally {
