@@ -441,6 +441,173 @@
           }
         }
       }
+    },
+    "/cost/ingest": {
+      "post": {
+        "operationId": "ingestCostRecord",
+        "summary": "Submit a provider cost record for an asset",
+        "description": "Ingests a single billing record attributing spend to a specific asset. Records are validated, stored, and emitted as audit events.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCostRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cost record accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["id", "ingested_at"],
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "ingested_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cost record (schema validation failure)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token (when auth enforcement is enabled)"
+          }
+        }
+      }
+    },
+    "/cost/assets": {
+      "get": {
+        "operationId": "getAssetCosts",
+        "summary": "Get per-asset cost summaries",
+        "description": "Returns aggregated spend grouped by (provider, asset_name, asset_version) for the specified query window.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Filter to a specific provider (e.g. azure, aws, openai)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the date window (ISO 8601)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive end of the date window (ISO 8601)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-asset cost summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["assets", "total"],
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "assets": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AssetCostSummary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token (when auth enforcement is enabled)"
+          }
+        }
+      }
+    },
+    "/cost/assets/top": {
+      "get": {
+        "operationId": "getTopAssetsByCost",
+        "summary": "Get top assets by total spend",
+        "description": "Returns up to `limit` assets ordered by total_cost_usd descending over the specified date window.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Filter to a specific provider",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the date window (ISO 8601)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive end of the date window (ISO 8601)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of results to return (1–100, default 10)",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top assets ordered by total spend",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["assets", "total"],
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "assets": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AssetCostSummary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token (when auth enforcement is enabled)"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -516,6 +683,73 @@
           "mcpb_url": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ProviderCostRecord": {
+        "type": "object",
+        "required": ["provider", "asset_name", "cost_usd", "period_start", "period_end"],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Cloud or AI provider identifier, e.g. azure, aws, openai",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "asset_name": {
+            "type": "string",
+            "description": "OASF asset name this cost is attributed to",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "asset_version": {
+            "type": "string",
+            "description": "Optional semver asset version"
+          },
+          "cost_usd": {
+            "type": "number",
+            "description": "Total spend for the period (non-negative)",
+            "minimum": 0
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the billing period (ISO 8601)"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive end of the billing period (ISO 8601)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (default: USD)",
+            "default": "USD"
+          },
+          "tags": {
+            "type": "object",
+            "description": "Optional free-form tags for grouping",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      },
+      "AssetCostSummary": {
+        "type": "object",
+        "required": ["asset_name", "provider", "total_cost_usd", "period_start", "period_end", "record_count"],
+        "properties": {
+          "asset_name": { "type": "string" },
+          "asset_version": { "type": "string" },
+          "provider": { "type": "string" },
+          "total_cost_usd": {
+            "type": "number",
+            "description": "Aggregated spend in USD"
+          },
+          "period_start": { "type": "string", "format": "date-time" },
+          "period_end": { "type": "string", "format": "date-time" },
+          "record_count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of raw records aggregated"
           }
         }
       }

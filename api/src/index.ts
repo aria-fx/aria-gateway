@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import catalogRouter from "./routes/catalog.js";
+import costRouter from "./routes/cost.js";
 import pluginsRouter from "./routes/plugins.js";
 import mcpRouter from "./routes/mcp.js";
 import { createAuthMiddleware } from "./middleware/auth.middleware.js";
@@ -69,6 +70,7 @@ app.get("/metrics", (_req, res) => {
 
 // Routes
 app.use("/catalog", catalogRouter);
+app.use("/cost", costRouter);
 app.use("/mcp", mcpRouter);
 app.use(pluginsRouter); // handles /.well-known/* and /openapi.json
 
