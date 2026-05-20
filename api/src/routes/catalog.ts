@@ -160,7 +160,7 @@ router.get("/assets/:name/:version/manifest", async (req, res) => {
         current_spend: budget.current_spend,
         threshold: budget.threshold,
         currency: budget.currency,
-        action_url: `/cost/assets?asset_name=${encodeURIComponent(name)}`,
+        action_url: `/cost/assets`,
       });
       return;
     }
