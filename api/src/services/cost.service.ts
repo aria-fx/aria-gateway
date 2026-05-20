@@ -98,8 +98,15 @@ export interface BudgetCheckResult {
 /**
  * Check whether the accumulated spend for an asset has reached a configured
  * threshold.  Totals all records for the given `assetName` (across all
- * providers and versions) with no date-window filter, so enforcement is
- * based on lifetime spend rather than a rolling window.
+ * providers and all versions) with no date-window filter, so enforcement is
+ * based on lifetime spend for the asset name rather than a rolling window or
+ * a per-version sub-total.
+ *
+ * This is intentional: `budget_threshold` represents the overall spend cap
+ * for the asset (independent of which specific version is being installed or
+ * invoked), matching how cloud cost dashboards typically bucket spend.
+ * If you need per-version enforcement, configure separate governance overlays
+ * per version and filter cost records accordingly before calling this helper.
  *
  * @param assetName   - OASF asset name to aggregate spend for.
  * @param threshold   - Maximum spend value before enforcement triggers.

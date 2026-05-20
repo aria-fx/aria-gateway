@@ -155,7 +155,7 @@ router.get("/assets/:name/:version/manifest", async (req, res) => {
         allowed: false,
         reason: {
           code: "budget_exceeded",
-          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
+          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached or exceeded the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
         },
         current_spend: budget.current_spend,
         threshold: budget.threshold,
@@ -264,7 +264,7 @@ router.post("/assets/:name/:version/install", async (req, res) => {
         allowed: false,
         reason: {
           code: "budget_exceeded",
-          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
+          message: `Current spend (${budget.current_spend.toFixed(2)} ${budget.currency}) has reached or exceeded the configured threshold of ${budget.threshold.toFixed(2)} ${budget.currency} for this asset.`,
         },
         current_spend: budget.current_spend,
         threshold: budget.threshold,
