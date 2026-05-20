@@ -68,10 +68,23 @@ export interface CostIngestionEvent {
   timestamp: string;
 }
 
+export interface BudgetEnforcementEvent {
+  event: "budget.enforcement";
+  asset_name: string;
+  asset_version: string;
+  consumer_id: string;
+  flow: "install" | "invoke";
+  current_spend: number;
+  threshold: number;
+  currency: string;
+  timestamp: string;
+}
+
 export type ObservabilityEvent =
   | AuthFailureEvent
   | PolicyDenyEvent
-  | CostIngestionEvent;
+  | CostIngestionEvent
+  | BudgetEnforcementEvent;
 
 // ---------------------------------------------------------------------------
 // In-memory counters
@@ -181,6 +194,36 @@ export function emitCostIngestion(opts: {
     record_id: opts.record_id,
     provider: opts.provider,
     asset_name: opts.asset_name,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Emit a budget enforcement event and increment the corresponding counter.
+ *
+ * Call this whenever a budget threshold check blocks an install or invoke
+ * flow.  The event is auditable and exposes the current spend, threshold,
+ * and currency so operators can take remediation action.
+ */
+export function emitBudgetEnforcement(opts: {
+  asset_name: string;
+  asset_version: string;
+  consumer_id: string;
+  flow: "install" | "invoke";
+  current_spend: number;
+  threshold: number;
+  currency: string;
+}): void {
+  inc(`budget.enforcement.${opts.flow}`);
+  emit({
+    event: "budget.enforcement",
+    asset_name: opts.asset_name,
+    asset_version: opts.asset_version,
+    consumer_id: opts.consumer_id,
+    flow: opts.flow,
+    current_spend: opts.current_spend,
+    threshold: opts.threshold,
+    currency: opts.currency,
     timestamp: new Date().toISOString(),
   });
 }

@@ -15,7 +15,7 @@ const VALID_RECORD = {
   provider: "azure",
   asset_name: "aria.dev/skills/hr-policy-lookup",
   asset_version: "1.2.0",
-  cost_usd: 42.50,
+  cost: 42.50,
   period_start: "2026-01-01T00:00:00Z",
   period_end: "2026-01-31T23:59:59Z",
   currency: "USD",
@@ -50,7 +50,7 @@ describe("POST /cost/ingest", () => {
       .send({
         provider: "aws",
         asset_name: "aria.dev/agents/code-assistant",
-        cost_usd: 0,
+        cost: 0,
         period_start: "2026-02-01T00:00:00Z",
         period_end: "2026-02-28T23:59:59Z",
       })
@@ -70,10 +70,10 @@ describe("POST /cost/ingest", () => {
     expect(res.body.details).toBeDefined();
   });
 
-  it("returns 400 when cost_usd is negative", async () => {
+  it("returns 400 when cost is negative", async () => {
     const res = await request(app)
       .post("/cost/ingest")
-      .send({ ...VALID_RECORD, cost_usd: -1 })
+      .send({ ...VALID_RECORD, cost: -1 })
       .set("Content-Type", "application/json");
 
     expect(res.status).toBe(400);
@@ -123,13 +123,13 @@ describe("GET /cost/assets", () => {
     await request(app).post("/cost/ingest").send({
       provider: "aws",
       asset_name: "aria.dev/agents/code-assistant",
-      cost_usd: 100,
+      cost: 100,
       period_start: "2026-02-01T00:00:00Z",
       period_end: "2026-02-28T23:59:59Z",
     });
     await request(app).post("/cost/ingest").send({
       ...VALID_RECORD,
-      cost_usd: 10,
+      cost: 10,
       period_start: "2026-02-01T00:00:00Z",
       period_end: "2026-02-28T23:59:59Z",
     });
@@ -153,7 +153,7 @@ describe("GET /cost/assets", () => {
     const summary = res.body.assets[0];
     expect(summary.asset_name).toBe("aria.dev/skills/hr-policy-lookup");
     expect(summary.provider).toBe("azure");
-    expect(summary.total_cost_usd).toBeCloseTo(52.5); // 42.50 + 10
+    expect(summary.total_cost).toBeCloseTo(52.5); // 42.50 + 10
     expect(summary.record_count).toBe(2);
   });
 
@@ -189,7 +189,7 @@ describe("GET /cost/assets", () => {
     for (const s of res.body.assets) {
       expect(s).toHaveProperty("asset_name");
       expect(s).toHaveProperty("provider");
-      expect(s).toHaveProperty("total_cost_usd");
+      expect(s).toHaveProperty("total_cost");
       expect(s).toHaveProperty("period_start");
       expect(s).toHaveProperty("period_end");
       expect(s).toHaveProperty("record_count");
@@ -214,9 +214,9 @@ describe("GET /cost/assets/top", () => {
     clearCostRecords();
     // Seed three distinct assets with varying spend
     const assets = [
-      { provider: "azure", asset_name: "aria.dev/a", cost_usd: 50 },
-      { provider: "azure", asset_name: "aria.dev/b", cost_usd: 200 },
-      { provider: "azure", asset_name: "aria.dev/c", cost_usd: 10 },
+      { provider: "azure", asset_name: "aria.dev/a", cost: 50 },
+      { provider: "azure", asset_name: "aria.dev/b", cost: 200 },
+      { provider: "azure", asset_name: "aria.dev/c", cost: 10 },
     ];
     for (const a of assets) {
       await request(app).post("/cost/ingest").send({
@@ -227,11 +227,11 @@ describe("GET /cost/assets/top", () => {
     }
   });
 
-  it("returns assets ordered by total_cost_usd descending", async () => {
+  it("returns assets ordered by total_cost descending", async () => {
     const res = await request(app).get("/cost/assets/top");
 
     expect(res.status).toBe(200);
-    const costs = res.body.assets.map((a: { total_cost_usd: number }) => a.total_cost_usd);
+    const costs = res.body.assets.map((a: { total_cost: number }) => a.total_cost);
     expect(costs).toEqual([...costs].sort((a, b) => b - a));
   });
 
@@ -241,8 +241,8 @@ describe("GET /cost/assets/top", () => {
     expect(res.status).toBe(200);
     expect(res.body.assets).toHaveLength(2);
     // Should be the top 2 by spend
-    expect(res.body.assets[0].total_cost_usd).toBe(200);
-    expect(res.body.assets[1].total_cost_usd).toBe(50);
+    expect(res.body.assets[0].total_cost).toBe(200);
+    expect(res.body.assets[1].total_cost).toBe(50);
   });
 
   it("defaults to limit=10 when not specified", async () => {
@@ -272,7 +272,7 @@ describe("GET /cost/assets/top", () => {
     await request(app).post("/cost/ingest").send({
       provider: "aws",
       asset_name: "aria.dev/z",
-      cost_usd: 9999,
+      cost: 9999,
       period_start: "2026-01-01T00:00:00Z",
       period_end: "2026-01-31T23:59:59Z",
     });

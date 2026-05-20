@@ -88,6 +88,22 @@ export interface OasfGovernance {
    * Omit (or leave empty) to impose no purview-role constraint.
    */
   required_purview_roles?: string[];
+  /**
+   * Maximum cumulative spend (expressed in `budget_currency`) allowed for
+   * this asset before install and invoke flows are blocked.  When the total
+   * recorded spend from the cost service meets or exceeds this value the
+   * gateway returns a 402 response and emits a `budget.enforcement`
+   * observability event.
+   *
+   * Omit (or set to undefined) to impose no budget-based enforcement.
+   */
+  budget_threshold?: number;
+  /**
+   * ISO 4217 currency code for `budget_threshold` (e.g. "USD", "EUR").
+   * Defaults to "USD" when `budget_threshold` is set but `budget_currency`
+   * is omitted.
+   */
+  budget_currency?: string;
 }
 
 export interface CatalogAsset {
