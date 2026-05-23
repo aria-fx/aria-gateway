@@ -14,6 +14,18 @@ function responseWithJson(payload: unknown): Response {
 
 describe("model affinity routing", () => {
   const originalEnv = { ...process.env };
+  const baseAsset = {
+    name: "aria.dev/skills/model-routing-test",
+    version: "1.0.0",
+    schema_version: "1.0.0",
+    description: "routing test asset",
+    domains: [{ name: "engineering" }],
+    modules: [{ type: "mcp_server", transport: "stdio", tools: ["run"] }],
+    authors: ["Routing Team <routing@aria.dev>"],
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    lifecycle_state: "published",
+  };
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -37,17 +49,8 @@ describe("model affinity routing", () => {
 
     const registryAsset = {
       record: {
-        name: "aria.dev/skills/model-routing-test",
-        version: "1.0.0",
-        schema_version: "1.0.0",
-        description: "routing test asset",
+        ...baseAsset,
         skills: [{ id: 1, name: testSkillId }],
-        domains: [{ name: "engineering" }],
-        modules: [{ type: "mcp_server", transport: "stdio", tools: ["run"] }],
-        authors: ["Routing Team <routing@aria.dev>"],
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
-        lifecycle_state: "published",
       },
       governance: {
         sensitivity_tier: "public",
@@ -79,5 +82,103 @@ describe("model affinity routing", () => {
 
     expect(routed.skillId).toBe(testSkillId);
     expect(routed.model).toBe(expectedModel);
+  });
+
+  it("supports array payload entries with skillId and skill fields", async () => {
+    const skillWithSkillId = "test/array-skill-id";
+    const skillWithSkill = "test/array-skill";
+    const skillIdModel = "gpt-4.1";
+    const skillModel = "gpt-4o-mini";
+
+    const registryAsset = {
+      record: {
+        ...baseAsset,
+        skills: [
+          { id: 1, name: skillWithSkillId },
+          { id: 2, name: skillWithSkill },
+        ],
+      },
+      governance: {
+        sensitivity_tier: "public",
+      },
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/manifests/stable")) {
+        return responseWithJson({
+          manifests: [
+            {
+              digest: "sha256:manifest-1",
+              annotations: {
+                "io.aria.asset": JSON.stringify(registryAsset),
+                "io.aria.model-affinity.json": JSON.stringify([
+                  { skillId: skillWithSkillId, optimalModel: skillIdModel },
+                  { skill: skillWithSkill, model: skillModel },
+                ]),
+              },
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await refreshCatalogAssets();
+
+    const routedSkillId = await routeSkillRequest(skillWithSkillId);
+    const routedSkill = await routeSkillRequest(skillWithSkill);
+
+    expect(routedSkillId.model).toBe(skillIdModel);
+    expect(routedSkill.model).toBe(skillModel);
+  });
+
+  it("supports object map payload entries containing model objects", async () => {
+    const skillModel = "test/object-model";
+    const skillOptimal = "test/object-optimal";
+    const expectedModel = "gpt-4.1-nano";
+    const expectedOptimal = "gpt-4.1";
+
+    const registryAsset = {
+      record: {
+        ...baseAsset,
+        skills: [
+          { id: 1, name: skillModel },
+          { id: 2, name: skillOptimal },
+        ],
+      },
+      governance: {
+        sensitivity_tier: "public",
+      },
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/manifests/stable")) {
+        return responseWithJson({
+          manifests: [
+            {
+              digest: "sha256:manifest-1",
+              annotations: {
+                "io.aria.asset": JSON.stringify(registryAsset),
+                "io.aria.model-affinity": JSON.stringify({
+                  [skillModel]: { model: expectedModel },
+                  [skillOptimal]: { optimalModel: expectedOptimal },
+                }),
+              },
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await refreshCatalogAssets();
+
+    const routedModel = await routeSkillRequest(skillModel);
+    const routedOptimal = await routeSkillRequest(skillOptimal);
+
+    expect(routedModel.model).toBe(expectedModel);
+    expect(routedOptimal.model).toBe(expectedOptimal);
   });
 });
