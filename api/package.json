@@ -9,6 +9,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "contract:check": "tsx src/scripts/check-openapi-contract-drift.ts",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
+    "test:policy": "vitest run tests/policy-contract.test.ts tests/conformance.test.ts",
     "test": "vitest run",
     "test:routing": "vitest run tests/routing.test.ts",
     "test:watch": "vitest",

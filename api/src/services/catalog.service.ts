@@ -210,17 +210,25 @@ function extractAssetsFromBlob(blob: unknown): CatalogAsset[] {
   return [];
 }
 
-function buildRegistryHeaders(accept: string): Record<string, string> {
+function buildRegistryHeaders(accept: string, forceBasicAuth = false): Record<string, string> {
   const headers: Record<string, string> = { Accept: accept };
   const token = process.env.CATALOG_REGISTRY_TOKEN;
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    if (forceBasicAuth) {
+      const username = process.env.CATALOG_REGISTRY_USERNAME ?? "x-access-token";
+      headers.Authorization = `Basic ${Buffer.from(`${username}:${token}`).toString("base64")}`;
+    } else {
+      headers.Authorization = `Bearer ${token}`;
+    }
   }
   return headers;
 }
 
 async function fetchJson<T>(url: string, accept: string): Promise<T> {
-  const response = await fetch(url, { headers: buildRegistryHeaders(accept) });
+  let response = await fetch(url, { headers: buildRegistryHeaders(accept) });
+  if (response.status === 401 && process.env.CATALOG_REGISTRY_TOKEN) {
+    response = await fetch(url, { headers: buildRegistryHeaders(accept, true) });
+  }
   if (!response.ok) {
     throw new Error(`Catalog registry request failed (${response.status}): ${url}`);
   }
@@ -521,7 +529,18 @@ function resolveTrustBadge(asset: CatalogAsset): TrustBadge {
   return "internal-use";
 }
 
-function toListItem(asset: CatalogAsset): AssetListItem {
+async function resolveAssetListOptimalModel(asset: CatalogAsset): Promise<string> {
+  for (const skill of asset.record.skills) {
+    const byId = await resolveOptimalModelForSkill(skill.id);
+    if (byId) return byId;
+    const byName = await resolveOptimalModelForSkill(skill.name);
+    if (byName) return byName;
+  }
+  return "unknown";
+}
+
+async function toListItem(asset: CatalogAsset): Promise<AssetListItem> {
+  const optimalModel = await resolveAssetListOptimalModel(asset);
   return {
     name: asset.record.name,
     version: asset.record.version,
@@ -534,6 +553,9 @@ function toListItem(asset: CatalogAsset): AssetListItem {
     tags: asset.record.tags ?? [],
     authors: asset.record.authors,
     updated_at: asset.record.updated_at,
+    modelAffinity: {
+      optimal_model: optimalModel,
+    },
   };
 }
 
@@ -545,10 +567,10 @@ export interface CatalogFilters {
   sensitivity?: SensitivityTier;
 }
 
-function listAssetsFromSource(
+async function listAssetsFromSource(
   source: CatalogAsset[],
   filters: CatalogFilters = {}
-): AssetListItem[] {
+): Promise<AssetListItem[]> {
   let assets = source.filter(
     (a) => a.record.lifecycle_state === "published"
   );
@@ -587,7 +609,7 @@ function listAssetsFromSource(
     );
   }
 
-  return assets.map(toListItem);
+  return Promise.all(assets.map(toListItem));
 }
 
 export async function listAssets(filters: CatalogFilters = {}): Promise<AssetListItem[]> {
