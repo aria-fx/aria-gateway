@@ -21,6 +21,7 @@ interface CatalogProvider {
   getAssets(): Promise<CatalogAsset[]>;
   refreshAssets(): Promise<CatalogAsset[]>;
   getCacheMetrics(): CatalogCacheMetrics;
+  resolveOptimalModelForSkill(skillId: string | number): Promise<string | null>;
 }
 
 interface RegistryIndexManifest {
@@ -58,6 +59,74 @@ const CATALOG_ASSET_ANNOTATION_KEYS = [
   "io.aria.catalog.asset",
   "org.opencontainers.image.description",
 ];
+const MODEL_AFFINITY_ANNOTATION_KEYS = [
+  "io.aria.model-affinity.json",
+  "io.aria.model-affinity",
+  "io.aria.model_affinity",
+];
+
+function normalizeSkillKey(skillId: string | number): string {
+  return String(skillId).trim().toLowerCase();
+}
+
+function extractModelFromCandidate(candidate: unknown): string | null {
+  if (typeof candidate === "string" && candidate.trim().length > 0) {
+    return candidate.trim();
+  }
+  if (!candidate || typeof candidate !== "object") return null;
+  const record = candidate as Record<string, unknown>;
+  const model =
+    record.model ??
+    record.optimalModel ??
+    record.optimal_model ??
+    record.modelId ??
+    record.model_id;
+  return typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
+}
+
+function parseModelAffinityAnnotation(
+  annotations?: Record<string, string>
+): Map<string, string> {
+  const affinities = new Map<string, string>();
+  if (!annotations) return affinities;
+
+  for (const key of MODEL_AFFINITY_ANNOTATION_KEYS) {
+    const raw = annotations[key];
+    if (!raw) continue;
+    const sizeBefore = affinities.size;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (!entry || typeof entry !== "object") continue;
+          const row = entry as Record<string, unknown>;
+          const skill =
+            typeof row.skillId === "string" || typeof row.skillId === "number"
+              ? row.skillId
+              : typeof row.skill === "string" || typeof row.skill === "number"
+                ? row.skill
+                : undefined;
+          const model = extractModelFromCandidate(row);
+          if (skill !== undefined && model) {
+            affinities.set(normalizeSkillKey(skill), model);
+          }
+        }
+      } else if (parsed && typeof parsed === "object") {
+        for (const [skill, value] of Object.entries(parsed as Record<string, unknown>)) {
+          const model = extractModelFromCandidate(value);
+          if (model) {
+            affinities.set(normalizeSkillKey(skill), model);
+          }
+        }
+      }
+    } catch {
+      // ignore malformed annotation and try other keys
+    }
+    if (affinities.size > sizeBefore) break;
+  }
+
+  return affinities;
+}
 
 function isLocalDevelopment(): boolean {
   return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
@@ -184,6 +253,10 @@ class SampleCatalogProvider implements CatalogProvider {
       refresh_failure_total: 0,
     };
   }
+
+  async resolveOptimalModelForSkill(_skillId: string | number): Promise<string | null> {
+    return null;
+  }
 }
 
 class RegistryCatalogProvider implements CatalogProvider {
@@ -206,6 +279,8 @@ class RegistryCatalogProvider implements CatalogProvider {
   private lastRefreshDurationMs: number | null = null;
 
   private freshnessSamplesSeconds: number[] = [];
+
+  private modelAffinityBySkill = new Map<string, string>();
 
   async getAssets(): Promise<CatalogAsset[]> {
     const now = Date.now();
@@ -254,6 +329,11 @@ class RegistryCatalogProvider implements CatalogProvider {
     };
   }
 
+  async resolveOptimalModelForSkill(skillId: string | number): Promise<string | null> {
+    await this.getAssets();
+    return this.modelAffinityBySkill.get(normalizeSkillKey(skillId)) ?? null;
+  }
+
   private observeFreshness(now = Date.now()): void {
     if (!this.lastRefreshAt) return;
     const freshnessSeconds = Math.max(0, (now - this.lastRefreshAt) / 1000);
@@ -299,8 +379,14 @@ class RegistryCatalogProvider implements CatalogProvider {
     const indexUrl = `${registry}/v2/${repository}/manifests/${reference}`;
     const index = await fetchJson<RegistryIndex>(indexUrl, OCI_INDEX_MEDIA_TYPE);
     const manifests = index.manifests ?? [];
+    const modelAffinityBySkill = new Map<string, string>();
     const manifestAssets = await Promise.all(
       manifests.map(async (descriptor) => {
+        const affinities = parseModelAffinityAnnotation(descriptor.annotations);
+        for (const [skill, model] of affinities.entries()) {
+          modelAffinityBySkill.set(skill, model);
+        }
+
         const fromAnnotation = parseAssetAnnotation(descriptor.annotations);
         if (fromAnnotation) {
           return [fromAnnotation];
@@ -318,6 +404,7 @@ class RegistryCatalogProvider implements CatalogProvider {
       })
     );
 
+    this.modelAffinityBySkill = modelAffinityBySkill;
     return manifestAssets.flat();
   }
 }
@@ -352,6 +439,17 @@ class RegistryWithSampleFallbackProvider implements CatalogProvider {
 
   getCacheMetrics(): CatalogCacheMetrics {
     return this.registryProvider.getCacheMetrics();
+  }
+
+  async resolveOptimalModelForSkill(skillId: string | number): Promise<string | null> {
+    try {
+      return await this.registryProvider.resolveOptimalModelForSkill(skillId);
+    } catch (error) {
+      if (isLocalDevelopment() && isSampleModeEnabled()) {
+        return this.sampleProvider.resolveOptimalModelForSkill(skillId);
+      }
+      throw error;
+    }
   }
 }
 
@@ -391,6 +489,23 @@ export function getCatalogCacheMetrics(): CatalogCacheMetrics {
     providerInstance = createCatalogProvider();
   }
   return providerInstance.getCacheMetrics();
+}
+
+export async function resolveOptimalModelForSkill(skillId: string | number): Promise<string | null> {
+  if (!providerInstance) {
+    providerInstance = createCatalogProvider();
+  }
+  return providerInstance.resolveOptimalModelForSkill(skillId);
+}
+
+export async function routeSkillRequest(
+  skillId: string | number
+): Promise<{ skillId: string; model: string | null }> {
+  const model = await resolveOptimalModelForSkill(skillId);
+  return {
+    skillId: String(skillId),
+    model,
+  };
 }
 
 function resolveTrustBadge(asset: CatalogAsset): TrustBadge {
