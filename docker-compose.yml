@@ -19,10 +19,12 @@ services:
       context: ./api
       dockerfile: Dockerfile
     environment:
-      NODE_ENV: production
+      NODE_ENV: "${NODE_ENV:-production}"
       PORT: "3001"
       API_BASE_URL: "${API_BASE_URL:-http://localhost:8080}"
       CORS_ORIGIN: "*"
+      CATALOG_PROVIDER: "${CATALOG_PROVIDER:-registry}"
+      CATALOG_SAMPLE_MODE: "${CATALOG_SAMPLE_MODE:-false}"
       CATALOG_REGISTRY_TOKEN: "${CATALOG_REGISTRY_TOKEN:-}"
     ports:
       - "3001:3001"
