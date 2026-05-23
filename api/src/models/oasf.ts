@@ -125,7 +125,7 @@ export interface AssetListItem {
   authors: string[];
   updated_at: string;
   modelAffinity: {
-    optimal_model: string | null;
+    optimal_model: string;
   };
 }
 
