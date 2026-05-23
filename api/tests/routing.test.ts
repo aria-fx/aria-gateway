@@ -181,4 +181,94 @@ describe("model affinity routing", () => {
     expect(routedModel.model).toBe(expectedModel);
     expect(routedOptimal.model).toBe(expectedOptimal);
   });
+
+  it("falls back to alternate annotation keys when earlier entries are malformed", async () => {
+    const skillId = "test/fallback-key";
+    const expectedModel = "gpt-4.1";
+
+    const registryAsset = {
+      record: {
+        ...baseAsset,
+        skills: [{ id: 1, name: skillId }],
+      },
+      governance: {
+        sensitivity_tier: "public",
+      },
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/manifests/stable")) {
+        return responseWithJson({
+          manifests: [
+            {
+              digest: "sha256:manifest-1",
+              annotations: {
+                "io.aria.asset": JSON.stringify(registryAsset),
+                "io.aria.model-affinity.json": "{",
+                "io.aria.model-affinity": JSON.stringify({
+                  [skillId]: expectedModel,
+                }),
+              },
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await refreshCatalogAssets();
+    const routed = await routeSkillRequest(skillId);
+
+    expect(routed.model).toBe(expectedModel);
+  });
+
+  it("supports snake_case model fields and normalized skill ids", async () => {
+    const skillWithWhitespace = "Test/Snake-Case";
+    const numericSkillId = 42;
+    const expectedModel = "gpt-4.1-mini";
+    const expectedNumericModel = "gpt-4o-mini";
+
+    const registryAsset = {
+      record: {
+        ...baseAsset,
+        skills: [
+          { id: 1, name: skillWithWhitespace },
+          { id: numericSkillId, name: String(numericSkillId) },
+        ],
+      },
+      governance: {
+        sensitivity_tier: "public",
+      },
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/manifests/stable")) {
+        return responseWithJson({
+          manifests: [
+            {
+              digest: "sha256:manifest-1",
+              annotations: {
+                "io.aria.asset": JSON.stringify(registryAsset),
+                "io.aria.model_affinity": JSON.stringify([
+                  { skillId: ` ${skillWithWhitespace.toLowerCase()} `, model_id: expectedModel },
+                  { skill: numericSkillId, optimal_model: expectedNumericModel },
+                ]),
+              },
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await refreshCatalogAssets();
+
+    const routedCaseInsensitive = await routeSkillRequest(skillWithWhitespace);
+    const routedNumeric = await routeSkillRequest(numericSkillId);
+
+    expect(routedCaseInsensitive.model).toBe(expectedModel);
+    expect(routedNumeric.model).toBe(expectedNumericModel);
+  });
 });
