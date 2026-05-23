@@ -93,6 +93,7 @@ function parseModelAffinityAnnotation(
   for (const key of MODEL_AFFINITY_ANNOTATION_KEYS) {
     const raw = annotations[key];
     if (!raw) continue;
+    const sizeBefore = affinities.size;
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (Array.isArray(parsed)) {
@@ -110,10 +111,7 @@ function parseModelAffinityAnnotation(
             affinities.set(normalizeSkillKey(skill), model);
           }
         }
-        continue;
-      }
-
-      if (parsed && typeof parsed === "object") {
+      } else if (parsed && typeof parsed === "object") {
         for (const [skill, value] of Object.entries(parsed as Record<string, unknown>)) {
           const model = extractModelFromCandidate(value);
           if (model) {
@@ -124,6 +122,7 @@ function parseModelAffinityAnnotation(
     } catch {
       // ignore malformed annotation and try other keys
     }
+    if (affinities.size > sizeBefore) break;
   }
 
   return affinities;
