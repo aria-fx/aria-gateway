@@ -10,14 +10,19 @@ async function sleep(ms: number): Promise<void> {
   });
 }
 
-async function fetchCatalogWithRetry(): Promise<Response> {
+async function fetchWithRetry(url: string): Promise<Response> {
   let lastResponse: Response | null = null;
+  let lastError: unknown;
   for (let attempt = 1; attempt <= CATALOG_RETRY_ATTEMPTS; attempt += 1) {
-    const response = await fetch(`${CONTRACT_BASE_URL}/api/catalog`);
-    if (response.status === 200) {
-      return response;
+    try {
+      const response = await fetch(url);
+      if (response.status === 200) {
+        return response;
+      }
+      lastResponse = response;
+    } catch (error) {
+      lastError = error;
     }
-    lastResponse = response;
     if (attempt < CATALOG_RETRY_ATTEMPTS) {
       await sleep(CATALOG_RETRY_DELAY_MS);
     }
@@ -25,7 +30,14 @@ async function fetchCatalogWithRetry(): Promise<Response> {
   if (lastResponse) {
     return lastResponse;
   }
-  throw new Error("Catalog endpoint did not return a response");
+  if (lastError instanceof Error) {
+    throw new Error(`Request failed after retries: ${lastError.message}`);
+  }
+  throw new Error("Request failed after retries");
+}
+
+async function fetchCatalogWithRetry(): Promise<Response> {
+  return fetchWithRetry(`${CONTRACT_BASE_URL}/api/catalog`);
 }
 
 describe("Gateway live contract", () => {
@@ -54,7 +66,7 @@ describe("Gateway live contract", () => {
   });
 
   it("MCP endpoint contract responds to discovery and initialize", async () => {
-    const infoResponse = await fetch(`${CONTRACT_BASE_URL}/mcp`);
+    const infoResponse = await fetchWithRetry(`${CONTRACT_BASE_URL}/mcp`);
     expect(infoResponse.status).toBe(200);
     const info = (await infoResponse.json()) as { name?: string; protocol_version?: string };
     expect(info.name).toBe("aria-gateway");
