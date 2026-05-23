@@ -23,6 +23,7 @@ services:
       PORT: "3001"
       API_BASE_URL: "${API_BASE_URL:-http://localhost:8080}"
       CORS_ORIGIN: "*"
+      CATALOG_REGISTRY_TOKEN: "${CATALOG_REGISTRY_TOKEN:-}"
     ports:
       - "3001:3001"
     healthcheck:
@@ -43,7 +44,7 @@ services:
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/health.txt"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health.txt"]
       interval: 30s
       timeout: 5s
       start_period: 10s

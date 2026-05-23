@@ -124,6 +124,9 @@ export interface AssetListItem {
   tags: string[];
   authors: string[];
   updated_at: string;
+  modelAffinity: {
+    optimal_model: string | null;
+  };
 }
 
 export type TrustBadge =

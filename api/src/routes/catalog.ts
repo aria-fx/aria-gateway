@@ -8,6 +8,7 @@ import {
   getAllPublishedAssets,
   getAllAssets,
   refreshCatalogAssets,
+  resolveOptimalModelForSkill,
 } from "../services/catalog.service.js";
 import {
   checkGovernance,
@@ -19,6 +20,19 @@ import { generateMcpbManifest } from "../services/mcpb.service.js";
 import { POLICY_CONTRACT_VERSION } from "../models/policy-contract.js";
 
 const router = Router();
+
+async function resolveAssetOptimalModel(asset?: Awaited<ReturnType<typeof getAllAssets>>[number]): Promise<string | null> {
+  if (!asset) return null;
+
+  for (const skill of asset.record.skills) {
+    const byId = await resolveOptimalModelForSkill(skill.id);
+    if (byId) return byId;
+    const byName = await resolveOptimalModelForSkill(skill.name);
+    if (byName) return byName;
+  }
+
+  return null;
+}
 
 function toGovernanceBlockReason(reason?: string): { code: string; message: string } {
   if (!reason) {
@@ -64,40 +78,60 @@ const listQuerySchema = z.object({
 
 // GET /catalog/assets — browse / search catalog (spec: returns paginated results)
 router.get("/assets", async (req, res) => {
-  const parsed = listQuerySchema.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
-    return;
+  try {
+    const parsed = listQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
+      return;
+    }
+
+    const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
+    const catalogAssets = await getAllAssets();
+    const catalogAssetsByKey = new Map(
+      catalogAssets.map((asset) => [`${asset.record.name}@${asset.record.version}`, asset])
+    );
+    // Map 'q' to internal 'keyword' parameter for listAssets service
+    const listParams = { ...parsed.data, keyword: parsed.data.q };
+    const all = await listAssets(listParams);
+
+    // Filter by governance – only show assets the consumer is authorized to see
+    const visible = all.filter((item) => {
+      const full = catalogAssetsByKey.get(`${item.name}@${item.version}`);
+      if (!full) return false;
+      return checkGovernance(full, consumer, catalogAssets).allowed;
+    });
+
+    // Implement pagination per spec
+    const page = parsed.data.page || 1;
+    const pageSize = parsed.data.pageSize || 25;
+    const startIdx = (page - 1) * pageSize;
+    const paged = visible.slice(startIdx, startIdx + pageSize);
+    const pagedWithModelAffinity = await Promise.all(
+      paged.map(async (item) => {
+        const full = catalogAssetsByKey.get(`${item.name}@${item.version}`);
+        const optimalModel = await resolveAssetOptimalModel(full);
+        return {
+          ...item,
+          modelAffinity: {
+            optimal_model: optimalModel,
+          },
+        };
+      })
+    );
+
+    res.json({
+      total: visible.length,
+      page,
+      pageSize,
+      assets: pagedWithModelAffinity,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(502).json({
+      error: "Catalog registry unavailable",
+      message,
+    });
   }
-
-  const consumer = parseConsumerContext(req.headers as Record<string, string | undefined>, req.identity);
-  const catalogAssets = await getAllAssets();
-  const catalogAssetsByKey = new Map(
-    catalogAssets.map((asset) => [`${asset.record.name}@${asset.record.version}`, asset])
-  );
-  // Map 'q' to internal 'keyword' parameter for listAssets service
-  const listParams = { ...parsed.data, keyword: parsed.data.q };
-  const all = await listAssets(listParams);
-
-  // Filter by governance – only show assets the consumer is authorized to see
-  const visible = all.filter((item) => {
-    const full = catalogAssetsByKey.get(`${item.name}@${item.version}`);
-    if (!full) return false;
-    return checkGovernance(full, consumer, catalogAssets).allowed;
-  });
-
-  // Implement pagination per spec
-  const page = parsed.data.page || 1;
-  const pageSize = parsed.data.pageSize || 25;
-  const startIdx = (page - 1) * pageSize;
-  const paged = visible.slice(startIdx, startIdx + pageSize);
-
-  res.json({
-    total: visible.length,
-    page,
-    pageSize,
-    assets: paged,
-  });
 });
 
 // GET /catalog/assets/:name/versions

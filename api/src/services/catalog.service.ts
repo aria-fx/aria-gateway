@@ -210,17 +210,25 @@ function extractAssetsFromBlob(blob: unknown): CatalogAsset[] {
   return [];
 }
 
-function buildRegistryHeaders(accept: string): Record<string, string> {
+function buildRegistryHeaders(accept: string, forceBasicAuth = false): Record<string, string> {
   const headers: Record<string, string> = { Accept: accept };
   const token = process.env.CATALOG_REGISTRY_TOKEN;
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    if (forceBasicAuth) {
+      const username = process.env.CATALOG_REGISTRY_USERNAME ?? "x-access-token";
+      headers.Authorization = `Basic ${Buffer.from(`${username}:${token}`).toString("base64")}`;
+    } else {
+      headers.Authorization = `Bearer ${token}`;
+    }
   }
   return headers;
 }
 
 async function fetchJson<T>(url: string, accept: string): Promise<T> {
-  const response = await fetch(url, { headers: buildRegistryHeaders(accept) });
+  let response = await fetch(url, { headers: buildRegistryHeaders(accept) });
+  if (response.status === 401 && process.env.CATALOG_REGISTRY_TOKEN) {
+    response = await fetch(url, { headers: buildRegistryHeaders(accept, true) });
+  }
   if (!response.ok) {
     throw new Error(`Catalog registry request failed (${response.status}): ${url}`);
   }
@@ -534,6 +542,9 @@ function toListItem(asset: CatalogAsset): AssetListItem {
     tags: asset.record.tags ?? [],
     authors: asset.record.authors,
     updated_at: asset.record.updated_at,
+    modelAffinity: {
+      optimal_model: null,
+    },
   };
 }
 
