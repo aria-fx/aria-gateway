@@ -109,7 +109,7 @@ router.get("/assets", async (req, res) => {
     const pagedWithModelAffinity = await Promise.all(
       paged.map(async (item) => {
         const full = catalogAssetsByKey.get(`${item.name}@${item.version}`);
-        const optimalModel = await resolveAssetOptimalModel(full);
+        const optimalModel = (await resolveAssetOptimalModel(full)) ?? "unassigned";
         return {
           ...item,
           modelAffinity: {
