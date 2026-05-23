@@ -529,7 +529,18 @@ function resolveTrustBadge(asset: CatalogAsset): TrustBadge {
   return "internal-use";
 }
 
-function toListItem(asset: CatalogAsset): AssetListItem {
+async function resolveAssetListOptimalModel(asset: CatalogAsset): Promise<string> {
+  for (const skill of asset.record.skills) {
+    const byId = await resolveOptimalModelForSkill(skill.id);
+    if (byId) return byId;
+    const byName = await resolveOptimalModelForSkill(skill.name);
+    if (byName) return byName;
+  }
+  return "unknown";
+}
+
+async function toListItem(asset: CatalogAsset): Promise<AssetListItem> {
+  const optimalModel = await resolveAssetListOptimalModel(asset);
   return {
     name: asset.record.name,
     version: asset.record.version,
@@ -543,7 +554,7 @@ function toListItem(asset: CatalogAsset): AssetListItem {
     authors: asset.record.authors,
     updated_at: asset.record.updated_at,
     modelAffinity: {
-      optimal_model: null,
+      optimal_model: optimalModel,
     },
   };
 }
@@ -556,10 +567,10 @@ export interface CatalogFilters {
   sensitivity?: SensitivityTier;
 }
 
-function listAssetsFromSource(
+async function listAssetsFromSource(
   source: CatalogAsset[],
   filters: CatalogFilters = {}
-): AssetListItem[] {
+): Promise<AssetListItem[]> {
   let assets = source.filter(
     (a) => a.record.lifecycle_state === "published"
   );
@@ -598,7 +609,7 @@ function listAssetsFromSource(
     );
   }
 
-  return assets.map(toListItem);
+  return Promise.all(assets.map(toListItem));
 }
 
 export async function listAssets(filters: CatalogFilters = {}): Promise<AssetListItem[]> {
