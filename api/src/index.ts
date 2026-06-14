@@ -87,8 +87,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 export { app };
 
-// Only start the server when run directly (not when imported in tests)
-if (process.env.NODE_ENV !== "test") {
+// Only start the server outside the Vitest runtime (tests import `app` directly)
+if (process.env.VITEST !== "true") {
   app.listen(PORT, () => {
     console.log(`ARIA Distribution Gateway running on port ${PORT}`);
     console.log(`  Catalog API:  http://localhost:${PORT}/catalog/assets`);
