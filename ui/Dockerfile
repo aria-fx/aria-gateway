@@ -9,6 +9,9 @@ RUN npm ci
 COPY tsconfig.json tsconfig.node.json vite.config.ts tailwind.config.js postcss.config.js index.html ./
 COPY src/ ./src/
 
+ARG VITE_API_URL=/catalog
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # ---- Runtime Stage (nginx) ----

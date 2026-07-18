@@ -25,6 +25,9 @@ services:
       CORS_ORIGIN: "*"
       CATALOG_PROVIDER: "${CATALOG_PROVIDER:-registry}"
       CATALOG_SAMPLE_MODE: "${CATALOG_SAMPLE_MODE:-false}"
+      CATALOG_REGISTRY_URL: "${CATALOG_REGISTRY_URL:-https://ghcr.io}"
+      CATALOG_REGISTRY_REPOSITORY: "${CATALOG_REGISTRY_REPOSITORY:-aria-fx/aria-assets}"
+      CATALOG_REGISTRY_REFERENCE: "${CATALOG_REGISTRY_REFERENCE:-latest}"
       CATALOG_REGISTRY_TOKEN: "${CATALOG_REGISTRY_TOKEN:-}"
     ports:
       - "3001:3001"
@@ -41,6 +44,8 @@ services:
     build:
       context: ./ui
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "${VITE_API_URL:-/catalog}"
     ports:
       - "8081:80"
     depends_on:

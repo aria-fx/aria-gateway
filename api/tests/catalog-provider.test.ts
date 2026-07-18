@@ -54,7 +54,7 @@ describe("catalog provider selection", () => {
     resetCatalogProviderForTests();
   });
 
-  it("uses sample provider only when sample mode is explicitly enabled in development", () => {
+  it("uses sample provider when CATALOG_PROVIDER=sample and CATALOG_SAMPLE_MODE=true", () => {
     process.env.NODE_ENV = "development";
     process.env.CATALOG_PROVIDER = "sample";
     process.env.CATALOG_SAMPLE_MODE = "true";
@@ -62,10 +62,18 @@ describe("catalog provider selection", () => {
     expect(resolveCatalogProviderMode()).toBe("sample");
   });
 
-  it("disables sample provider outside local development", () => {
+  it("uses sample provider when CATALOG_PROVIDER=sample and CATALOG_SAMPLE_MODE=true regardless of NODE_ENV", () => {
     process.env.NODE_ENV = "production";
     process.env.CATALOG_PROVIDER = "sample";
     process.env.CATALOG_SAMPLE_MODE = "true";
+
+    expect(resolveCatalogProviderMode()).toBe("sample");
+  });
+
+  it("disables sample provider when CATALOG_SAMPLE_MODE is not set", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CATALOG_PROVIDER = "sample";
+    // CATALOG_SAMPLE_MODE not set
 
     expect(resolveCatalogProviderMode()).toBe("registry");
   });
