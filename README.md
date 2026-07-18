@@ -282,7 +282,7 @@ Images are built for `linux/amd64` and `linux/arm64`.
 | `CATALOG_REGISTRY_URL` | `https://ghcr.io` | OCI registry base URL for catalog assets |
 | `CATALOG_REGISTRY_REPOSITORY` | `aria-fx/aria-assets` | Repository path within the registry |
 | `CATALOG_REGISTRY_REFERENCE` | `latest` | Tag or digest to fetch from the registry |
-| `CATALOG_REGISTRY_TOKEN` | — | ****** (or PAT) for authenticating to the catalog registry |
+| `CATALOG_REGISTRY_TOKEN` | — | ****** or Personal Access Token (PAT) for authenticating to the catalog registry |
 | `CATALOG_CACHE_TTL_SECONDS` | `300` | Registry metadata cache TTL and staleness window (seconds) |
 | `CATALOG_FRESHNESS_SLA_P95_SECONDS` | `300` | Target p95 freshness SLA (seconds) for cache observations |
 
