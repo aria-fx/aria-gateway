@@ -163,8 +163,8 @@ function toP95(values: number[]): number | null {
 }
 
 export function resolveCatalogProviderMode(): CatalogProviderMode {
-  if (process.env.CATALOG_PROVIDER === "sample") {
-    return isLocalDevelopment() && isSampleModeEnabled() ? "sample" : "registry";
+  if (process.env.CATALOG_PROVIDER === "sample" && isSampleModeEnabled()) {
+    return "sample";
   }
   return "registry";
 }

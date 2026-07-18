@@ -277,6 +277,12 @@ Images are built for `linux/amd64` and `linux/arm64`.
 | `ENTRA_TENANT_ID` | — | Azure AD tenant ID (builds issuer + JWKS URLs automatically) |
 | `ENTRA_AUDIENCE` | — | Expected `aud` claim (app/client ID or URI) |
 | `LEGACY_HEADERS_MODE` | `enabled` | Set to `disabled` to reject header-only requests |
+| `CATALOG_PROVIDER` | `registry` | Catalog data source: `registry` to pull from an OCI registry, `sample` to serve built-in sample assets |
+| `CATALOG_SAMPLE_MODE` | `false` | Set to `true` to activate sample data when `CATALOG_PROVIDER=sample`; also enables registry-to-sample fallback in dev/test |
+| `CATALOG_REGISTRY_URL` | `https://ghcr.io` | OCI registry base URL for catalog assets |
+| `CATALOG_REGISTRY_REPOSITORY` | `aria-fx/aria-assets` | Repository path within the registry |
+| `CATALOG_REGISTRY_REFERENCE` | `latest` | Tag or digest to fetch from the registry |
+| `CATALOG_REGISTRY_TOKEN` | — | ****** (or PAT) for authenticating to the catalog registry |
 | `CATALOG_CACHE_TTL_SECONDS` | `300` | Registry metadata cache TTL and staleness window (seconds) |
 | `CATALOG_FRESHNESS_SLA_P95_SECONDS` | `300` | Target p95 freshness SLA (seconds) for cache observations |
 
@@ -284,7 +290,7 @@ Images are built for `linux/amd64` and `linux/arm64`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_URL` | `/catalog` | Catalog API base URL |
+| `VITE_API_URL` | `/catalog` | Catalog API base URL (build-time; passed as a Docker build arg in `docker-compose.yml`) |
 
 ---
 
